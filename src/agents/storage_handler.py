@@ -2,6 +2,10 @@
 Storage Handler Agent.
 
 Handles all storage operations for tasks.
+
+Phase II: Added optional user_id support for multi-user task isolation.
+When user_id is provided in payload, it's passed to backend methods.
+When user_id is None (console app), backward compatibility is maintained.
 """
 
 from __future__ import annotations
@@ -120,8 +124,11 @@ class StorageHandlerAgent(BaseAgent):
                 "Invalid task data type",
             )
 
-        saved = await self._backend.save(task)
-        self._log.info("task_saved", task_id=saved.id)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        saved = await self._backend.save(task, user_id=user_id)
+        self._log.info("task_saved", task_id=saved.id, user_id=user_id)
 
         return self._create_success_response(
             message.request_id,
@@ -137,7 +144,10 @@ class StorageHandlerAgent(BaseAgent):
                 "Missing 'task_id' in payload",
             )
 
-        task = await self._backend.get(task_id)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        task = await self._backend.get(task_id, user_id=user_id)
         if task is None:
             return self._create_error_response(
                 message.request_id,
@@ -151,7 +161,10 @@ class StorageHandlerAgent(BaseAgent):
 
     async def _handle_get_all(self, message: AgentMessage) -> AgentResponse:
         """Handle storage_get_all action."""
-        tasks = await self._backend.get_all()
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        tasks = await self._backend.get_all(user_id=user_id)
 
         return self._create_success_response(
             message.request_id,
@@ -178,8 +191,11 @@ class StorageHandlerAgent(BaseAgent):
                 "Invalid task data type",
             )
 
-        updated = await self._backend.update(task)
-        self._log.info("task_updated", task_id=updated.id)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        updated = await self._backend.update(task, user_id=user_id)
+        self._log.info("task_updated", task_id=updated.id, user_id=user_id)
 
         return self._create_success_response(
             message.request_id,
@@ -195,8 +211,11 @@ class StorageHandlerAgent(BaseAgent):
                 "Missing 'task_id' in payload",
             )
 
-        deleted = await self._backend.delete(task_id)
-        self._log.info("task_deleted", task_id=task_id, success=deleted)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        deleted = await self._backend.delete(task_id, user_id=user_id)
+        self._log.info("task_deleted", task_id=task_id, user_id=user_id, success=deleted)
 
         return self._create_success_response(
             message.request_id,
@@ -207,7 +226,10 @@ class StorageHandlerAgent(BaseAgent):
         """Handle storage_query action."""
         status = message.payload.get("status")
 
-        tasks = await self._backend.query(status=status)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        tasks = await self._backend.query(status=status, user_id=user_id)
 
         return self._create_success_response(
             message.request_id,
@@ -216,8 +238,11 @@ class StorageHandlerAgent(BaseAgent):
 
     async def _handle_clear(self, message: AgentMessage) -> AgentResponse:
         """Handle storage_clear action."""
-        count = await self._backend.clear()
-        self._log.info("storage_cleared", count=count)
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        count = await self._backend.clear(user_id=user_id)
+        self._log.info("storage_cleared", user_id=user_id, count=count)
 
         return self._create_success_response(
             message.request_id,

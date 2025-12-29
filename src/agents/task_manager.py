@@ -2,6 +2,10 @@
 Task Manager Agent.
 
 Handles business logic for task operations.
+
+Phase II: Added optional user_id support for multi-user task isolation.
+When user_id is provided in message payload, it's forwarded to storage agent.
+When user_id is None (console app), backward compatibility is maintained.
 """
 
 from __future__ import annotations
@@ -134,13 +138,16 @@ class TaskManagerAgent(BaseAgent):
 
         description = message.payload.get("description")
 
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
         # Create task
         task = Task(title=title, description=description)
 
-        # Save to storage
+        # Save to storage (include user_id if provided)
         response = await self._send_to_storage(
             "storage_save",
-            {"task": task.model_dump()},
+            {"task": task.model_dump(), "user_id": user_id},
             message.correlation_id,
         )
 
@@ -150,7 +157,7 @@ class TaskManagerAgent(BaseAgent):
                 response.error or "Failed to save task",
             )
 
-        self._log.info("task_added", task_id=task.id)
+        self._log.info("task_added", task_id=task.id, user_id=user_id)
         return self._create_success_response(
             message.request_id,
             response.result,
@@ -160,10 +167,13 @@ class TaskManagerAgent(BaseAgent):
         """Handle task_list action."""
         status = message.payload.get("status")
 
-        # Query storage
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        # Query storage (include user_id if provided)
         response = await self._send_to_storage(
             "storage_query",
-            {"status": status},
+            {"status": status, "user_id": user_id},
             message.correlation_id,
         )
 
@@ -187,10 +197,13 @@ class TaskManagerAgent(BaseAgent):
                 "Missing 'task_id' in payload",
             )
 
-        # Get the task first
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        # Get the task first (include user_id if provided)
         get_response = await self._send_to_storage(
             "storage_get",
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             message.correlation_id,
         )
 
@@ -205,10 +218,10 @@ class TaskManagerAgent(BaseAgent):
         task = Task(**task_data)
         completed_task = task.mark_complete()
 
-        # Update in storage
+        # Update in storage (include user_id if provided)
         update_response = await self._send_to_storage(
             "storage_update",
-            {"task": completed_task.model_dump()},
+            {"task": completed_task.model_dump(), "user_id": user_id},
             message.correlation_id,
         )
 
@@ -218,7 +231,7 @@ class TaskManagerAgent(BaseAgent):
                 update_response.error or "Failed to complete task",
             )
 
-        self._log.info("task_completed", task_id=task_id)
+        self._log.info("task_completed", task_id=task_id, user_id=user_id)
         return self._create_success_response(
             message.request_id,
             update_response.result,
@@ -233,10 +246,13 @@ class TaskManagerAgent(BaseAgent):
                 "Missing 'task_id' in payload",
             )
 
-        # Delete from storage
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        # Delete from storage (include user_id if provided)
         response = await self._send_to_storage(
             "storage_delete",
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             message.correlation_id,
         )
 
@@ -253,7 +269,7 @@ class TaskManagerAgent(BaseAgent):
                 f"Task not found: {task_id}",
             )
 
-        self._log.info("task_deleted", task_id=task_id)
+        self._log.info("task_deleted", task_id=task_id, user_id=user_id)
         return self._create_success_response(
             message.request_id,
             {"deleted": True, "task_id": task_id},
@@ -268,10 +284,13 @@ class TaskManagerAgent(BaseAgent):
                 "Missing 'task_id' in payload",
             )
 
-        # Get from storage
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        # Get from storage (include user_id if provided)
         response = await self._send_to_storage(
             "storage_get",
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             message.correlation_id,
         )
 
@@ -304,10 +323,13 @@ class TaskManagerAgent(BaseAgent):
                 "No update fields provided",
             )
 
-        # Get the task first
+        # Phase II: Extract optional user_id for multi-user support
+        user_id = message.payload.get("user_id")
+
+        # Get the task first (include user_id if provided)
         get_response = await self._send_to_storage(
             "storage_get",
-            {"task_id": task_id},
+            {"task_id": task_id, "user_id": user_id},
             message.correlation_id,
         )
 
@@ -322,10 +344,10 @@ class TaskManagerAgent(BaseAgent):
         task = Task(**task_data)
         updated_task = task.update(title=title, description=description)
 
-        # Save update
+        # Save update (include user_id if provided)
         update_response = await self._send_to_storage(
             "storage_update",
-            {"task": updated_task.model_dump()},
+            {"task": updated_task.model_dump(), "user_id": user_id},
             message.correlation_id,
         )
 
@@ -335,7 +357,7 @@ class TaskManagerAgent(BaseAgent):
                 update_response.error or "Failed to update task",
             )
 
-        self._log.info("task_updated", task_id=task_id)
+        self._log.info("task_updated", task_id=task_id, user_id=user_id)
         return self._create_success_response(
             message.request_id,
             update_response.result,
