@@ -2,6 +2,7 @@
 In-Memory Storage Backend.
 
 Simple dictionary-based storage for Phase I development.
+Phase II: Added user_id parameters (ignored for backward compatibility).
 """
 
 from __future__ import annotations
@@ -27,6 +28,9 @@ class InMemoryBackend:
     Data is lost when the application exits.
 
     Implements the StorageBackend protocol.
+
+    Phase II: user_id parameters are accepted but ignored for backward compatibility.
+    This allows the console app (Phase I) to continue working without changes.
     """
 
     def __init__(self) -> None:
@@ -35,7 +39,7 @@ class InMemoryBackend:
         self._lock = asyncio.Lock()
         self._log = logger.bind(backend="in_memory")
 
-    async def save(self, task: Task) -> Task:
+    async def save(self, task: Task, user_id: str | None = None) -> Task:
         """
         Save a task to storage.
 
@@ -60,12 +64,13 @@ class InMemoryBackend:
                 operation="save",
             ) from e
 
-    async def get(self, task_id: str) -> Task | None:
+    async def get(self, task_id: str, user_id: str | None = None) -> Task | None:
         """
         Retrieve a task by ID.
 
         Args:
             task_id: The unique identifier of the task.
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             The task if found, None otherwise.
@@ -78,9 +83,12 @@ class InMemoryBackend:
                 self._log.debug("task_not_found", task_id=task_id)
             return task
 
-    async def get_all(self) -> list[Task]:
+    async def get_all(self, user_id: str | None = None) -> list[Task]:
         """
         Retrieve all tasks.
+
+        Args:
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             List of all tasks in storage.
@@ -90,12 +98,13 @@ class InMemoryBackend:
             self._log.debug("tasks_retrieved", count=len(tasks))
             return tasks
 
-    async def update(self, task: Task) -> Task:
+    async def update(self, task: Task, user_id: str | None = None) -> Task:
         """
         Update an existing task.
 
         Args:
             task: The task with updated fields.
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             The updated task.
@@ -115,12 +124,13 @@ class InMemoryBackend:
             self._log.debug("task_updated", task_id=task.id)
             return task
 
-    async def delete(self, task_id: str) -> bool:
+    async def delete(self, task_id: str, user_id: str | None = None) -> bool:
         """
         Delete a task by ID.
 
         Args:
             task_id: The unique identifier of the task to delete.
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             True if the task was deleted, False if not found.
@@ -136,12 +146,14 @@ class InMemoryBackend:
     async def query(
         self,
         status: str | None = None,
+        user_id: str | None = None,
     ) -> list[Task]:
         """
         Query tasks with optional filters.
 
         Args:
             status: Optional filter by status ('pending' or 'completed').
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             List of tasks matching the filter criteria.
@@ -159,9 +171,12 @@ class InMemoryBackend:
             )
             return tasks
 
-    async def clear(self) -> int:
+    async def clear(self, user_id: str | None = None) -> int:
         """
         Delete all tasks from storage.
+
+        Args:
+            user_id: Optional user ID (ignored for backward compatibility).
 
         Returns:
             The number of tasks deleted.
