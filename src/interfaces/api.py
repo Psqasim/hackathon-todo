@@ -21,7 +21,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from src.auth import CurrentUser, create_access_token, hash_password, verify_password
-from src.config import settings
+from src.config import ALLOWED_ORIGINS, settings
 from src.db import create_tables, get_engine
 from src.models import UserDB
 from src.models.requests import (
@@ -61,14 +61,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configure CORS
+# Configure CORS with dynamic origins from config
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.frontend_url,
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],

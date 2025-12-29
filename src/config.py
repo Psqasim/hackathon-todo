@@ -2,6 +2,7 @@
 Application configuration for Phase II.
 
 Loads environment variables with sensible defaults.
+Supports Railway deployment detection.
 """
 
 from __future__ import annotations
@@ -16,6 +17,45 @@ from pydantic_settings import BaseSettings
 
 # Load .env file
 load_dotenv()
+
+# Detect if running on Railway
+IS_RAILWAY = os.getenv("RAILWAY_ENVIRONMENT") is not None
+RAILWAY_PUBLIC_DOMAIN = os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+
+
+def get_frontend_url() -> str:
+    """Get frontend URL based on environment."""
+    env_url = os.getenv("FRONTEND_URL")
+    if env_url:
+        return env_url
+    if IS_RAILWAY:
+        return "https://hackathon-todo.vercel.app"
+    return "http://localhost:3000"
+
+
+def get_backend_url() -> str:
+    """Get backend URL based on environment."""
+    env_url = os.getenv("BACKEND_URL")
+    if env_url:
+        return env_url
+    if IS_RAILWAY and RAILWAY_PUBLIC_DOMAIN:
+        return f"https://{RAILWAY_PUBLIC_DOMAIN}"
+    return "http://localhost:8000"
+
+
+def get_allowed_origins() -> list[str]:
+    """Get CORS allowed origins."""
+    origins = [
+        get_frontend_url(),
+        "http://localhost:3000",  # Local development
+    ]
+    # Add Vercel preview deployments pattern
+    if IS_RAILWAY:
+        origins.extend([
+            "https://hackathon-todo.vercel.app",
+            "https://hackathon-todo-*.vercel.app",
+        ])
+    return origins
 
 
 class Settings(BaseSettings):
@@ -54,14 +94,14 @@ class Settings(BaseSettings):
 
     # CORS
     frontend_url: str = Field(
-        default="http://localhost:3000",
+        default_factory=get_frontend_url,
         alias="FRONTEND_URL",
         description="Frontend URL for CORS",
     )
 
     # Backend URL (for OAuth callbacks)
     backend_url: str = Field(
-        default="http://localhost:8000",
+        default_factory=get_backend_url,
         alias="BACKEND_URL",
         description="Backend URL for OAuth callbacks",
     )
@@ -112,3 +152,6 @@ def get_settings() -> Settings:
 
 # Convenience accessors
 settings = get_settings()
+
+# CORS allowed origins (computed at module load)
+ALLOWED_ORIGINS = get_allowed_origins()
