@@ -5,15 +5,15 @@
 <h1 align="center">TaskFlow</h1>
 
 <p align="center">
-  <strong>A Modern Full-Stack Task Management Application</strong>
+  <strong>A Modern Multi-Agent Task Management Application</strong>
 </p>
 
 <p align="center">
-  <a href="#features">Features</a> •
-  <a href="#quick-start">Quick Start</a> •
+  <a href="#run-phase-i-console">Phase I Console</a> •
+  <a href="#run-phase-ii-web-app">Phase II Web App</a> •
+  <a href="#live-demo">Live Demo</a> •
   <a href="#oauth-setup">OAuth Setup</a> •
-  <a href="#api-reference">API Reference</a> •
-  <a href="#testing">Testing</a>
+  <a href="#api-reference">API Reference</a>
 </p>
 
 <p align="center">
@@ -29,23 +29,139 @@
 
 ## About
 
-**TaskFlow** is a comprehensive multi-agent Todo application built with Spec-Driven Development (SDD). It features a beautiful modern UI, secure authentication with OAuth support, and a robust FastAPI backend.
+**TaskFlow** is a comprehensive multi-agent Todo application built with Spec-Driven Development (SDD). It features both a **console application** (Phase I) and a **full-stack web application** (Phase II), both using the same multi-agent architecture.
 
 **Author**: [Muhammad Qasim](https://github.com/Psqasim) | Full Stack Developer | AI & Web 3.0 Enthusiast
 
 ### Project Phases
 
-| Phase | Description | Status |
-|-------|-------------|--------|
-| Phase I | Console App (In-Memory) | Completed |
-| **Phase II** | **Web App (PostgreSQL + OAuth)** | **Current** |
-| Phase III | AI Chatbot (MCP Integration) | Upcoming |
-| Phase IV | Local Kubernetes | Upcoming |
-| Phase V | Cloud Deployment | Upcoming |
+| Phase | Description | Status | How to Run |
+|-------|-------------|--------|------------|
+| **Phase I** | Console App (In-Memory) | Completed | `uv run todo` |
+| **Phase II** | Web App (PostgreSQL + OAuth) | Completed | See below |
+| Phase III | AI Chatbot (MCP Integration) | Upcoming | - |
+| Phase IV | Local Kubernetes | Upcoming | - |
+| Phase V | Cloud Deployment | Upcoming | - |
 
 ---
 
-## Features
+## Live Demo
+
+| Service | URL |
+|---------|-----|
+| **Web App** | https://hackathon-todo-orcin.vercel.app |
+| **Backend API** | https://web-production-3e6df.up.railway.app |
+| **API Docs** | https://web-production-3e6df.up.railway.app/docs |
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **Python 3.12+** - [Download](https://www.python.org/downloads/)
+- **UV Package Manager** - [Install](https://docs.astral.sh/uv/)
+- **Node.js 20+** (for Phase II) - [Download](https://nodejs.org/)
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/Psqasim/hackathon-todo.git
+cd hackathon-todo
+
+# Install Python dependencies
+uv sync --all-extras
+```
+
+---
+
+## Run Phase I: Console Application
+
+Phase I is a Rich console-based todo app with in-memory storage.
+
+### Start Console App
+
+```bash
+uv run todo
+```
+
+### Phase I Features
+
+| Feature | Description |
+|---------|-------------|
+| **Add Task** | Create new tasks with title and description |
+| **View Tasks** | List all tasks with status |
+| **Update Task** | Edit task title and description |
+| **Complete Task** | Mark tasks as done |
+| **Delete Task** | Remove tasks |
+| **Rich UI** | Beautiful console interface with colors |
+| **Multi-Agent** | Orchestrator, TaskManager, StorageHandler agents |
+
+### Phase I Architecture
+
+```
+Console App (uv run todo)
+    ↓
+UIControllerAgent (Rich console)
+    ↓
+OrchestratorAgent (routes commands)
+    ↓
+TaskManagerAgent ←→ StorageHandlerAgent
+    ↓
+InMemoryBackend (data persists only during session)
+```
+
+---
+
+## Run Phase II: Full-Stack Web Application
+
+Phase II is a modern web app with authentication, OAuth, and PostgreSQL.
+
+### Backend Setup
+
+```bash
+# 1. Copy environment file
+cp .env.example .env
+
+# 2. Edit .env with your credentials:
+#    - DATABASE_URL (Neon PostgreSQL)
+#    - JWT_SECRET_KEY
+#    - GOOGLE_CLIENT_ID & GOOGLE_CLIENT_SECRET (optional)
+#    - GITHUB_CLIENT_ID & GITHUB_CLIENT_SECRET (optional)
+
+# 3. Run backend API
+uv run uvicorn src.interfaces.api:app --reload --port 8000
+```
+
+### Frontend Setup
+
+```bash
+# 1. Navigate to frontend
+cd frontend
+
+# 2. Install dependencies
+npm install
+
+# 3. Copy environment file
+cp .env.example .env.local
+
+# 4. Edit .env.local:
+#    NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# 5. Run frontend
+npm run dev
+```
+
+### Access Points (Local)
+
+| Service | URL |
+|---------|-----|
+| **Console App** | `uv run todo` |
+| **Web Frontend** | http://localhost:3000 |
+| **Backend API** | http://localhost:8000 |
+| **API Docs (Swagger)** | http://localhost:8000/docs |
+| **API Docs (ReDoc)** | http://localhost:8000/redoc |
 
 ### Phase II Features
 
@@ -63,38 +179,49 @@
 | **Responsive Design** | Mobile-friendly interface |
 | **Modern UI/UX** | Beautiful gradients and animations |
 
----
+### Phase II Architecture
 
-## Quick Start
-
-### Prerequisites
-
-- **Python 3.12+** - [Download](https://www.python.org/downloads/)
-- **UV Package Manager** - [Install](https://docs.astral.sh/uv/)
-- **Node.js 20+** - [Download](https://nodejs.org/)
-- **PostgreSQL** - We recommend [Neon](https://neon.tech) (free serverless PostgreSQL)
-
-### Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/Psqasim/hackathon-todo.git
-cd hackathon-todo
-
-# 2. Install backend dependencies
-uv sync --all-extras
-
-# 3. Install frontend dependencies
-cd frontend && npm install && cd ..
-
-# 4. Copy environment files
-cp .env.example .env
-cp frontend/.env.example frontend/.env.local
+```
+Web Frontend (Next.js 16)
+    ↓ REST API
+FastAPI Backend
+    ↓
+TaskManagerAgent ←→ StorageHandlerAgent
+    ↓
+PostgresBackend (Neon - persistent storage)
 ```
 
-### Environment Variables
+---
 
-#### Backend (`.env` in project root)
+## Both Phases Use Same Codebase
+
+| Aspect | Phase I (Console) | Phase II (Web) |
+|--------|-------------------|----------------|
+| **Entry Point** | `uv run todo` | `uvicorn + npm run dev` |
+| **Interface** | Rich Console | Next.js Web UI |
+| **Storage** | InMemoryBackend | PostgresBackend (Neon) |
+| **Auth** | None | JWT + OAuth |
+| **Agents** | Same (Orchestrator, TaskManager, StorageHandler) | Same |
+| **Can Run Together** | Yes | Yes |
+
+### Run Both Simultaneously
+
+```bash
+# Terminal 1: Phase I Console
+uv run todo
+
+# Terminal 2: Phase II Backend
+uv run uvicorn src.interfaces.api:app --reload --port 8000
+
+# Terminal 3: Phase II Frontend
+cd frontend && npm run dev
+```
+
+---
+
+## Environment Variables
+
+### Backend (`.env`)
 
 ```bash
 # Database (Neon PostgreSQL)
@@ -118,34 +245,11 @@ GITHUB_CLIENT_ID=your-github-client-id
 GITHUB_CLIENT_SECRET=your-github-client-secret
 ```
 
-#### Frontend (`frontend/.env.local`)
+### Frontend (`frontend/.env.local`)
 
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
-
-### Running the Application
-
-Open **two terminals** from the project root:
-
-**Terminal 1 - Backend (FastAPI)**
-```bash
-uv run uvicorn src.interfaces.api:app --reload --host 0.0.0.0 --port 8000
-```
-
-**Terminal 2 - Frontend (Next.js)**
-```bash
-cd frontend && npm run dev
-```
-
-### Access Points
-
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| Backend API | http://localhost:8000 |
-| API Docs (Swagger) | http://localhost:8000/docs |
-| API Docs (ReDoc) | http://localhost:8000/redoc |
 
 ---
 
@@ -154,36 +258,23 @@ cd frontend && npm run dev
 ### Google OAuth
 
 1. **Go to** [Google Cloud Console](https://console.cloud.google.com/)
-2. **Create Project** - Click project dropdown → "New Project" → Name it "TaskFlow"
-3. **OAuth Consent Screen**
-   - Go to "APIs & Services" → "OAuth consent screen"
-   - Select "External" → Fill in app name, email → Save
-4. **Create Credentials**
-   - Go to "Credentials" → "Create Credentials" → "OAuth client ID"
-   - Application type: "Web application"
+2. **Create Project** → Name it "TaskFlow"
+3. **OAuth Consent Screen** → Select "External" → Fill in app name
+4. **Create Credentials** → "OAuth client ID" → "Web application"
+5. **Add URIs**:
    - Authorized JavaScript origins: `http://localhost:3000`
    - Authorized redirect URIs: `http://localhost:8000/api/auth/google/callback`
-5. **Copy** Client ID and Client Secret to your `.env` file
+6. **Copy** Client ID and Client Secret to `.env`
 
 ### GitHub OAuth
 
 1. **Go to** [GitHub Developer Settings](https://github.com/settings/developers)
-2. **New OAuth App** - Click "New OAuth App"
-3. **Fill in details**:
+2. **New OAuth App**
+3. **Fill in**:
    - Application name: `TaskFlow`
    - Homepage URL: `http://localhost:3000`
    - Authorization callback URL: `http://localhost:8000/api/auth/github/callback`
-4. **Register** and copy Client ID
-5. **Generate** Client Secret and copy it
-6. **Add both** to your `.env` file
-
-### Verify OAuth
-
-1. Start backend and frontend
-2. Go to http://localhost:3000/signin
-3. Click "Google" or "GitHub" button
-4. Authorize the app
-5. You'll be redirected to the dashboard
+4. **Copy** Client ID and Client Secret to `.env`
 
 ---
 
@@ -204,7 +295,7 @@ cd frontend && npm run dev
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/users/{user_id}/tasks` | List tasks (filter: `?status=pending`) |
+| `GET` | `/api/users/{user_id}/tasks` | List tasks |
 | `POST` | `/api/users/{user_id}/tasks` | Create task |
 | `GET` | `/api/users/{user_id}/tasks/{task_id}` | Get task |
 | `PUT` | `/api/users/{user_id}/tasks/{task_id}` | Update task |
@@ -228,52 +319,15 @@ cd frontend && npm run dev
 # All tests
 uv run pytest
 
-# With verbose output
-uv run pytest -v
-
-# With coverage report
+# With coverage
 uv run pytest --cov=src --cov-report=term-missing
-
-# HTML coverage report
-uv run pytest --cov=src --cov-report=html
-# Open htmlcov/index.html
 ```
-
-### Test API with cURL
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# Create user
-curl -X POST http://localhost:8000/api/auth/signup \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"SecurePass123","name":"Test User"}'
-
-# Sign in (save the token)
-curl -X POST http://localhost:8000/api/auth/signin \
-  -H "Content-Type: application/json" \
-  -d '{"email":"test@example.com","password":"SecurePass123"}'
-```
-
-### Test Frontend Manually
-
-1. Open http://localhost:3000
-2. Click "Get Started" → Create account
-3. Create a task with title, description, priority
-4. Mark task as complete
-5. Edit and delete tasks
-6. Test search functionality
-7. Sign out and sign back in
 
 ### Code Quality
 
 ```bash
 # Linting
 uv run ruff check src tests
-
-# Auto-fix
-uv run ruff check --fix src tests
 
 # Type checking
 uv run mypy src
@@ -292,9 +346,7 @@ uv run mypy src
 | PostgreSQL (Neon) | Database |
 | JWT (python-jose) | Authentication |
 | Passlib + bcrypt | Password Hashing |
-| Pydantic v2 | Validation |
-| structlog | Logging |
-| httpx | OAuth HTTP Client |
+| Rich | Console UI (Phase I) |
 
 ### Frontend
 | Technology | Purpose |
@@ -303,7 +355,6 @@ uv run mypy src
 | TypeScript | Language |
 | React 19 | UI Library |
 | Tailwind CSS 4 | Styling |
-| Zod | Validation |
 
 ---
 
@@ -312,21 +363,26 @@ uv run mypy src
 ```
 hackathon-todo/
 ├── src/                          # Backend source
-│   ├── auth/                     # JWT & password handling
 │   ├── agents/                   # Multi-agent architecture
-│   ├── models/                   # Pydantic/SQLModel models
+│   │   ├── orchestrator.py       # Routes commands
+│   │   ├── task_manager.py       # Business logic
+│   │   ├── storage_handler.py    # Data operations
+│   │   └── ui_controller.py      # Console UI (Phase I)
 │   ├── backends/                 # Storage backends
+│   │   ├── memory.py             # InMemoryBackend (Phase I)
+│   │   └── postgres.py           # PostgresBackend (Phase II)
+│   ├── auth/                     # JWT & password handling
 │   ├── interfaces/api.py         # FastAPI REST API
-│   ├── config.py                 # Environment settings
-│   └── db.py                     # Database connection
-├── frontend/                     # Next.js frontend
+│   ├── app.py                    # Console app entry (Phase I)
+│   └── config.py                 # Environment settings
+├── frontend/                     # Next.js frontend (Phase II)
 │   ├── app/                      # App Router pages
 │   ├── components/               # React components
-│   ├── lib/                      # Utilities
-│   └── public/                   # Static assets
+│   └── lib/                      # API client
 ├── tests/                        # Test suites
 ├── specs/                        # Feature specifications
-├── .env.example                  # Environment template
+├── railway.json                  # Railway deployment config
+├── Procfile                      # Process file for deployment
 └── README.md                     # This file
 ```
 
