@@ -44,6 +44,22 @@ function PriorityIcon() {
   );
 }
 
+function AiChatIcon() {
+  return (
+    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  );
+}
+
+function TagsIcon() {
+  return (
+    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+    </svg>
+  );
+}
+
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -107,7 +123,7 @@ export default function Home() {
           <div className="max-w-4xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full border border-white/10 mb-8">
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-              <span className="text-sm text-white/80">Now with OAuth & Priority Management</span>
+              <span className="text-sm text-white/80">New: AI Chat Assistant & Smart Task Management</span>
             </div>
 
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight">
@@ -190,8 +206,22 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {/* Feature 1 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Feature 1 - AI Chat (NEW!) */}
+              <div className="group p-6 bg-gradient-to-br from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 rounded-2xl border border-purple-400/30 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/20 relative overflow-hidden">
+                <div className="absolute top-2 right-2 px-2 py-0.5 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full">
+                  <span className="text-xs font-bold text-white">NEW</span>
+                </div>
+                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
+                  <AiChatIcon />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">AI Chat Assistant</h3>
+                <p className="text-white/60 text-sm leading-relaxed">
+                  Manage tasks with natural language. Just tell the AI what you need - &quot;Add a task for tomorrow&quot;.
+                </p>
+              </div>
+
+              {/* Feature 2 */}
               <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-blue-500/10">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
                   <TaskIcon />
@@ -202,9 +232,9 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 2 */}
-              <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/10">
-                <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
+              {/* Feature 3 */}
+              <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-amber-500/10">
+                <div className="w-14 h-14 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
                   <PriorityIcon />
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">Priority Levels</h3>
@@ -213,7 +243,18 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 3 */}
+              {/* Feature 4 */}
+              <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-teal-500/10">
+                <div className="w-14 h-14 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
+                  <TagsIcon />
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">Tags & Categories</h3>
+                <p className="text-white/60 text-sm leading-relaxed">
+                  Organize tasks with custom tags. Filter and search to find exactly what you need.
+                </p>
+              </div>
+
+              {/* Feature 5 */}
               <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-green-500/10">
                 <div className="w-14 h-14 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
                   <SecurityIcon />
@@ -224,9 +265,9 @@ export default function Home() {
                 </p>
               </div>
 
-              {/* Feature 4 */}
-              <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-orange-500/10">
-                <div className="w-14 h-14 bg-gradient-to-br from-orange-500 to-amber-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
+              {/* Feature 6 */}
+              <div className="group p-6 bg-white/5 hover:bg-white/10 rounded-2xl border border-white/10 transition-all hover:scale-105 hover:shadow-xl hover:shadow-rose-500/10">
+                <div className="w-14 h-14 bg-gradient-to-br from-rose-500 to-red-500 rounded-xl flex items-center justify-center mb-4 text-white shadow-lg">
                   <SpeedIcon />
                 </div>
                 <h3 className="text-lg font-semibold text-white mb-2">Fast & Responsive</h3>
@@ -321,7 +362,7 @@ export default function Home() {
 
             {/* Phase Info */}
             <p className="text-white/40 text-sm">
-              Phase II: Full-Stack Web App
+              Phase III: AI-Powered Task Management
             </p>
           </div>
         </div>

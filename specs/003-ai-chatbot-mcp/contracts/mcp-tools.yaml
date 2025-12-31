@@ -1,0 +1,294 @@
+# MCP Tool Definitions for AI Chatbot
+# These tools are exposed by the MCP server for the OpenAI agent to call
+
+tools:
+  - name: add_task
+    description: Create a new task for the authenticated user
+    parameters:
+      type: object
+      properties:
+        title:
+          type: string
+          description: Task title (required, 1-200 characters)
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          description: Optional task description (max 1000 characters)
+          maxLength: 1000
+        priority:
+          type: string
+          description: Task priority level
+          enum: [low, medium, high, urgent]
+          default: medium
+        due_date:
+          type: string
+          format: date
+          description: Due date (YYYY-MM-DD format, optional)
+        tags:
+          type: array
+          items:
+            type: string
+          description: List of tags (max 10)
+          maxItems: 10
+      required:
+        - title
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        task:
+          $ref: "#/definitions/Task"
+        message:
+          type: string
+
+  - name: list_tasks
+    description: Get all tasks for the authenticated user with optional filters
+    parameters:
+      type: object
+      properties:
+        status:
+          type: string
+          description: Filter by task status
+          enum: [all, pending, completed]
+          default: all
+        priority:
+          type: string
+          description: Filter by priority level
+          enum: [low, medium, high, urgent]
+        limit:
+          type: integer
+          description: Maximum number of tasks to return
+          minimum: 1
+          maximum: 100
+          default: 50
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tasks:
+          type: array
+          items:
+            $ref: "#/definitions/Task"
+        count:
+          type: integer
+
+  - name: get_task
+    description: Get a specific task by ID
+    parameters:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task UUID
+      required:
+        - task_id
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        task:
+          $ref: "#/definitions/Task"
+        message:
+          type: string
+
+  - name: update_task
+    description: Update an existing task's fields
+    parameters:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task UUID to update
+        title:
+          type: string
+          description: New task title
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          description: New task description
+          maxLength: 1000
+        priority:
+          type: string
+          description: New priority level
+          enum: [low, medium, high, urgent]
+        due_date:
+          type: string
+          format: date
+          description: New due date (YYYY-MM-DD)
+        tags:
+          type: array
+          items:
+            type: string
+          maxItems: 10
+      required:
+        - task_id
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        task:
+          $ref: "#/definitions/Task"
+        message:
+          type: string
+
+  - name: delete_task
+    description: Permanently delete a task
+    parameters:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task UUID to delete
+      required:
+        - task_id
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        deleted_id:
+          type: string
+        message:
+          type: string
+
+  - name: complete_task
+    description: Toggle task completion status (pending <-> completed)
+    parameters:
+      type: object
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Task UUID
+        completed:
+          type: boolean
+          description: Set to true to complete, false to mark pending
+          default: true
+      required:
+        - task_id
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        task:
+          $ref: "#/definitions/Task"
+        message:
+          type: string
+
+  - name: search_tasks
+    description: Search tasks by keyword in title or description
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: Search query string
+          minLength: 1
+          maxLength: 100
+      required:
+        - query
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tasks:
+          type: array
+          items:
+            $ref: "#/definitions/Task"
+        count:
+          type: integer
+
+  - name: filter_tasks
+    description: Filter tasks by multiple criteria
+    parameters:
+      type: object
+      properties:
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        status:
+          type: string
+          enum: [pending, completed]
+        due_date_from:
+          type: string
+          format: date
+          description: Tasks due on or after this date
+        due_date_to:
+          type: string
+          format: date
+          description: Tasks due on or before this date
+        has_due_date:
+          type: boolean
+          description: Filter for tasks with/without due dates
+      additionalProperties: false
+    returns:
+      type: object
+      properties:
+        success:
+          type: boolean
+        tasks:
+          type: array
+          items:
+            $ref: "#/definitions/Task"
+        count:
+          type: integer
+
+definitions:
+  Task:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      title:
+        type: string
+      description:
+        type: string
+        nullable: true
+      status:
+        type: string
+        enum: [pending, completed]
+      priority:
+        type: string
+        enum: [low, medium, high, urgent]
+      due_date:
+        type: string
+        format: date-time
+        nullable: true
+      tags:
+        type: array
+        items:
+          type: string
+      is_recurring:
+        type: boolean
+      recurrence_pattern:
+        type: string
+        nullable: true
+      created_at:
+        type: string
+        format: date-time
+      updated_at:
+        type: string
+        format: date-time
+      completed_at:
+        type: string
+        format: date-time
+        nullable: true

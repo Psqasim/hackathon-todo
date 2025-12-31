@@ -64,6 +64,48 @@ async def get_current_user(
 CurrentUser = Annotated[str, Depends(get_current_user)]
 
 
+async def get_current_user_with_token(
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+    ],
+) -> tuple[str, str]:
+    """
+    FastAPI dependency to get the current user ID AND their JWT token.
+
+    Args:
+        credentials: HTTP Bearer credentials from the request.
+
+    Returns:
+        Tuple of (user_id, token)
+
+    Raises:
+        HTTPException: If authentication fails (401 Unauthorized).
+    """
+    if credentials is None:
+        logger.warning("auth_missing_credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        user_id = get_user_id_from_token(credentials.credentials)
+        logger.debug("auth_user_authenticated", user_id=user_id)
+        return user_id, credentials.credentials
+    except TokenError as e:
+        logger.warning("auth_token_invalid", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
+
+
+# Type alias for dependency injection with token
+CurrentUserWithToken = Annotated[tuple[str, str], Depends(get_current_user_with_token)]
+
+
 def verify_user_access(current_user: str, user_id: str) -> None:
     """
     Verify that the current user can access the requested user's resources.

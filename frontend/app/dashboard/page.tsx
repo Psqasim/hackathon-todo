@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Header } from "@/components/header";
+import { Footer } from "@/components/footer";
 import { TaskList } from "@/components/task-list";
 import { TaskForm } from "@/components/task-form";
 import { Loading } from "@/components/loading";
@@ -550,6 +551,8 @@ export default function DashboardPage() {
           isLoading={isLoading}
         />
       </main>
+
+      <Footer />
     </div>
   );
 }

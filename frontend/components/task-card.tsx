@@ -294,11 +294,10 @@ export function TaskCard({
             </div>
           </div>
 
-          {/* Actions */}
+          {/* Actions - always visible with clear styling */}
           <div
             className={`
-              flex items-center gap-1 flex-shrink-0
-              opacity-0 group-hover:opacity-100 transition-opacity duration-200
+              flex items-center gap-2 flex-shrink-0
               ${isLoading ? "hidden" : ""}
             `}
           >
@@ -307,17 +306,18 @@ export function TaskCard({
                 onClick={() => onEdit(task)}
                 disabled={isLoading}
                 className="
-                  p-2 rounded-lg text-slate-400
-                  hover:text-blue-600 hover:bg-blue-50
-                  focus:outline-none focus:ring-2 focus:ring-blue-300
-                  transition-colors duration-150
+                  p-2.5 rounded-xl bg-blue-50 text-blue-600
+                  hover:bg-blue-100 hover:text-blue-700
+                  focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-1
+                  transition-all duration-200 hover:scale-105
                   disabled:opacity-50 disabled:cursor-not-allowed
+                  shadow-sm hover:shadow-md
                 "
                 aria-label="Edit task"
                 title="Edit task"
               >
                 <svg
-                  className="w-4.5 h-4.5"
+                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -336,12 +336,13 @@ export function TaskCard({
               onClick={handleDelete}
               disabled={isLoading}
               className={`
-                p-2 rounded-lg transition-colors duration-150
-                focus:outline-none focus:ring-2
+                p-2.5 rounded-xl transition-all duration-200 hover:scale-105
+                focus:outline-none focus:ring-2 focus:ring-offset-1
                 disabled:opacity-50 disabled:cursor-not-allowed
+                shadow-sm hover:shadow-md
                 ${showDeleteConfirm
                   ? "text-white bg-red-500 hover:bg-red-600 focus:ring-red-300"
-                  : "text-slate-400 hover:text-red-600 hover:bg-red-50 focus:ring-red-300"
+                  : "bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-600 focus:ring-red-300"
                 }
               `}
               aria-label={showDeleteConfirm ? "Confirm delete" : "Delete task"}
@@ -349,7 +350,7 @@ export function TaskCard({
             >
               {showDeleteConfirm ? (
                 <svg
-                  className="w-4.5 h-4.5"
+                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -364,7 +365,7 @@ export function TaskCard({
                 </svg>
               ) : (
                 <svg
-                  className="w-4.5 h-4.5"
+                  className="w-4 h-4"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

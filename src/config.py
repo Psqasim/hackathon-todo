@@ -137,6 +137,25 @@ class Settings(BaseSettings):
         description="Application environment",
     )
 
+    # Phase III - OpenAI Configuration
+    openai_api_key: str = Field(
+        default="",
+        alias="OPENAI_API_KEY",
+        description="OpenAI API key for AI chatbot",
+    )
+
+    # Phase III - MCP Server Configuration
+    mcp_server_port: int = Field(
+        default=8001,
+        alias="MCP_SERVER_PORT",
+        description="Port for MCP server",
+    )
+    mcp_backend_url: str = Field(
+        default="http://localhost:8000",
+        alias="MCP_BACKEND_URL",
+        description="Backend URL for MCP server to call",
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
