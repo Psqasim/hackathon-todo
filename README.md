@@ -11,6 +11,7 @@
 <p align="center">
   <a href="#run-phase-i-console">Phase I Console</a> •
   <a href="#run-phase-ii-web-app">Phase II Web App</a> •
+  <a href="#run-phase-iii-ai-chatbot">Phase III AI Chatbot</a> •
   <a href="#live-demo">Live Demo</a> •
   <a href="#oauth-setup">OAuth Setup</a> •
   <a href="#api-reference">API Reference</a>
@@ -39,7 +40,7 @@
 |-------|-------------|--------|------------|
 | **Phase I** | Console App (In-Memory) | Completed | `uv run todo` |
 | **Phase II** | Web App (PostgreSQL + OAuth) | Completed | See below |
-| Phase III | AI Chatbot (MCP Integration) | Upcoming | - |
+| **Phase III** | AI Chatbot (OpenAI Agents SDK) | Completed | See below |
 | Phase IV | Local Kubernetes | Upcoming | - |
 | Phase V | Cloud Deployment | Upcoming | - |
 
@@ -193,27 +194,112 @@ PostgresBackend (Neon - persistent storage)
 
 ---
 
-## Both Phases Use Same Codebase
+## Run Phase III: AI Chatbot
 
-| Aspect | Phase I (Console) | Phase II (Web) |
-|--------|-------------------|----------------|
-| **Entry Point** | `uv run todo` | `uvicorn + npm run dev` |
-| **Interface** | Rich Console | Next.js Web UI |
-| **Storage** | InMemoryBackend | PostgresBackend (Neon) |
-| **Auth** | None | JWT + OAuth |
-| **Agents** | Same (Orchestrator, TaskManager, StorageHandler) | Same |
-| **Can Run Together** | Yes | Yes |
+Phase III adds an AI-powered chatbot using the OpenAI Agents SDK for natural language task management.
 
-### Run Both Simultaneously
+### Prerequisites
+
+- All Phase II requirements
+- **OpenAI API Key** with credit (gpt-4o-mini recommended, ~$7 minimum)
+
+### Additional Environment Variables
+
+Add to your `.env` file:
+
+```bash
+# OpenAI API Key (REQUIRED for chat)
+OPENAI_API_KEY=sk-proj-your-key-here
+```
+
+### Running Phase III (3 Terminals Required)
+
+```bash
+# Terminal 1: Backend API (Port 8000)
+uv run uvicorn src.interfaces.api:app --reload --port 8000
+
+# Terminal 2: MCP Server (Port 8001)
+uv run python -m src.mcp_server.server
+
+# Terminal 3: Frontend (Port 3000)
+cd frontend && npm run dev
+```
+
+### Access Chat
+
+1. Open http://localhost:3000
+2. Sign in to your account
+3. Click **"AI Chat"** in the header
+4. Accept the privacy notice (first time only)
+5. Start chatting with the AI assistant
+
+### Phase III Features
+
+| Feature | Description |
+|---------|-------------|
+| **Natural Language Tasks** | "Add a task to buy groceries tomorrow" |
+| **Task Queries** | "What tasks are due this week?" |
+| **Task Updates** | "Change that to high priority" |
+| **Context Awareness** | Remembers conversation history |
+| **8 MCP Tools** | Full CRUD + search/filter operations |
+| **Privacy Notice** | Transparent data handling disclosure |
+
+### Phase III Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Frontend (Next.js)                      │
+│  localStorage: conversation_ids only (no message content)   │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Backend (FastAPI)                         │
+│              STATELESS - no chat storage                    │
+│         Passes conversation_id to Agent Runner              │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+          ┌───────────────┴───────────────┐
+          ▼                               ▼
+┌─────────────────────────┐     ┌─────────────────────────────────┐
+│   Neon PostgreSQL       │     │   OpenAI Conversations API      │
+│  ONLY: Users, Tasks     │     │  Stores: Chat history, threads  │
+└─────────────────────────┘     └─────────────────────────────────┘
+```
+
+**Data Storage:**
+| Data | Location |
+|------|----------|
+| Users, Tasks | PostgreSQL (Neon) |
+| Chat History | OpenAI Conversations API (30 days) |
+| Conversation IDs | Browser localStorage |
+
+---
+
+## All Three Phases Use Same Codebase
+
+| Aspect | Phase I (Console) | Phase II (Web) | Phase III (AI Chat) |
+|--------|-------------------|----------------|---------------------|
+| **Entry Point** | `uv run todo` | `uvicorn + npm run dev` | + MCP Server |
+| **Interface** | Rich Console | Next.js Web UI | AI Chat Page |
+| **Storage** | InMemoryBackend | PostgresBackend (Neon) | + OpenAI Conversations |
+| **Auth** | None | JWT + OAuth | Same as Phase II |
+| **AI** | None | None | OpenAI Agents SDK |
+| **Can Run Together** | Yes | Yes | Yes |
+
+### Run All Simultaneously
 
 ```bash
 # Terminal 1: Phase I Console
 uv run todo
 
-# Terminal 2: Phase II Backend
+# Terminal 2: Backend API (serves Phase II + III)
 uv run uvicorn src.interfaces.api:app --reload --port 8000
 
-# Terminal 3: Phase II Frontend
+# Terminal 3: MCP Server (Phase III only)
+uv run python -m src.mcp_server.server
+
+# Terminal 4: Frontend (serves Phase II + III)
 cd frontend && npm run dev
 ```
 

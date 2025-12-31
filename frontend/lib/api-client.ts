@@ -221,3 +221,109 @@ export async function completeTask(
     }
   );
 }
+
+// ============================================================================
+// Chat API Functions (Phase III)
+// ============================================================================
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  tool_calls?: ToolCall[];
+  created_at: string;
+}
+
+export interface ToolCall {
+  id: string;
+  tool_name: string;
+  parameters: Record<string, unknown>;
+  result?: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface ChatRequest {
+  message: string;
+  conversation_id?: string;
+}
+
+export interface ChatResponse {
+  conversation_id: string;
+  message: ChatMessage;
+}
+
+export interface ConversationSummary {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface ConversationDetail {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  messages: ChatMessage[];
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationSummary[];
+  total: number;
+}
+
+export interface DeleteResponse {
+  deleted: boolean;
+  id: string;
+}
+
+/**
+ * Send a message to the AI chatbot
+ */
+export async function sendChatMessage(
+  message: string,
+  conversationId?: string
+): Promise<ChatResponse> {
+  const body: ChatRequest = { message };
+  if (conversationId) {
+    body.conversation_id = conversationId;
+  }
+
+  return apiRequest<ChatResponse>("/api/chat", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * List user's conversations
+ */
+export async function getConversations(
+  limit: number = 20,
+  offset: number = 0
+): Promise<ConversationListResponse> {
+  return apiRequest<ConversationListResponse>(
+    `/api/conversations?limit=${limit}&offset=${offset}`
+  );
+}
+
+/**
+ * Get a single conversation with messages
+ */
+export async function getConversation(
+  conversationId: string
+): Promise<ConversationDetail> {
+  return apiRequest<ConversationDetail>(`/api/conversations/${conversationId}`);
+}
+
+/**
+ * Delete a conversation
+ */
+export async function deleteConversation(
+  conversationId: string
+): Promise<DeleteResponse> {
+  return apiRequest<DeleteResponse>(`/api/conversations/${conversationId}`, {
+    method: "DELETE",
+  });
+}

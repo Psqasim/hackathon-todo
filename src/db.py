@@ -54,11 +54,13 @@ def create_tables() -> None:
     Should be called on application startup.
     """
     engine = get_engine()
-    
+
     # Import models to ensure they're registered with SQLModel
+    # Phase II models (Users and Tasks only)
     from src.models.tasks import TaskDB  # noqa: F401
     from src.models.user import UserDB  # noqa: F401
-    
+    # Note: Chat history stored in OpenAI Conversations API, not PostgreSQL
+
     SQLModel.metadata.create_all(engine)
     logger.info("database_tables_created")
 

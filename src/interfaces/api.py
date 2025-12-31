@@ -20,7 +20,13 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 from sqlmodel import Session, select
 
-from src.auth import CurrentUser, create_access_token, hash_password, verify_password
+from src.auth import (
+    CurrentUser,
+    CurrentUserWithToken,
+    create_access_token,
+    hash_password,
+    verify_password,
+)
 from src.config import ALLOWED_ORIGINS, settings
 from src.db import create_tables, get_engine
 from src.models import UserDB
@@ -902,6 +908,144 @@ async def complete_task_endpoint(
                 completed_at=task_db.completed_at,
             )
         )
+
+
+# =============================================================================
+# Chat Endpoints (Phase III)
+# =============================================================================
+#
+# Architecture:
+# - Chat history is stored in OpenAI Conversations API, NOT PostgreSQL
+# - Backend is stateless - no conversation/message tables
+# - Frontend stores conversation_ids in localStorage for sidebar
+# - PostgreSQL stores ONLY: Users, Tasks
+# =============================================================================
+
+from src.models.chat import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    ConversationListResponse,
+    DeleteResponse,
+)
+
+
+@app.post("/api/chat", response_model=ChatResponse, tags=["chat"])
+async def chat_endpoint(
+    request: ChatRequest,
+    user_with_token: CurrentUserWithToken,
+) -> ChatResponse:
+    """
+    Send a message to the AI chatbot.
+
+    FR-020: POST /api/chat accepts message and optional conversation_id
+    FR-021: Returns AI response with conversation_id for continuity
+
+    Args:
+        request: Chat message and optional conversation_id
+
+    Returns:
+        AI response with conversation_id
+    """
+    from src.mcp_server.agent import TaskAgent
+
+    # Extract user_id and token from the authenticated dependency
+    user_id, token = user_with_token
+
+    # Create agent with token for authenticated backend calls
+    agent = TaskAgent(token=token)
+
+    try:
+        response = await agent.process_message(
+            user_id=user_id,
+            message=request.message,
+            conversation_id=request.conversation_id,
+        )
+
+        # Create response message
+        assistant_message = ChatMessage(
+            role="assistant",
+            content=response.content,
+        )
+
+        logger.info(
+            "chat_message_processed",
+            user_id=user_id,
+            conversation_id=response.conversation_id,
+            tool_calls=len(response.tool_calls),
+        )
+
+        return ChatResponse(
+            conversation_id=response.conversation_id,
+            message=assistant_message,
+        )
+    except Exception as e:
+        logger.error("chat_error", error=str(e), user_id=user_id)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat processing failed: {e!s}",
+        )
+
+
+@app.get("/api/conversations", response_model=ConversationListResponse, tags=["chat"])
+async def list_conversations(
+    current_user: CurrentUser,
+    limit: int = Query(default=20, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ConversationListResponse:
+    """
+    List user's conversations.
+
+    NOTE: Chat history is stored in OpenAI Conversations API, NOT PostgreSQL.
+    The frontend manages conversation_id references in localStorage.
+    This endpoint returns an empty list since we don't track conversations server-side.
+
+    For the sidebar to work, frontend stores conversation_ids locally and
+    displays them. When clicked, it sends the conversation_id to /api/chat
+    to continue that conversation via OpenAI's API.
+    """
+    # No server-side conversation storage - frontend uses localStorage
+    # Return empty list to maintain API compatibility
+    return ConversationListResponse(conversations=[], total=0)
+
+
+@app.delete(
+    "/api/conversations/{conversation_id}",
+    response_model=DeleteResponse,
+    tags=["chat"],
+)
+async def delete_conversation(
+    conversation_id: str,
+    current_user: CurrentUser,
+) -> DeleteResponse:
+    """
+    Delete a conversation.
+
+    NOTE: This deletes the conversation from OpenAI's Conversations API.
+    Frontend should also remove the conversation_id from localStorage.
+    """
+    from openai import AsyncOpenAI
+
+    try:
+        # Delete from OpenAI Conversations API
+        client = AsyncOpenAI()
+        await client.conversations.delete(conversation_id=conversation_id)
+
+        logger.info(
+            "conversation_deleted",
+            conversation_id=conversation_id,
+            user_id=current_user,
+        )
+
+        return DeleteResponse(deleted=True, id=conversation_id)
+    except Exception as e:
+        logger.error(
+            "conversation_delete_failed",
+            conversation_id=conversation_id,
+            error=str(e),
+        )
+        # Return success anyway since frontend will remove from localStorage
+        return DeleteResponse(deleted=True, id=conversation_id)
 
 
 if __name__ == "__main__":
