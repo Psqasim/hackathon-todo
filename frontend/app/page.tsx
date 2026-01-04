@@ -9,7 +9,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { isAuthenticated } from "@/lib/auth-client";
+import { isAuthenticated, getStoredUser } from "@/lib/auth-client";
+import { FloatingChatWidget } from "@/components/floating-chat-widget";
 
 // Feature icons
 function TaskIcon() {
@@ -62,10 +63,16 @@ function TagsIcon() {
 
 export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState<string | undefined>();
 
   useEffect(() => {
     // Check authentication status (no redirect)
-    setIsLoggedIn(isAuthenticated());
+    const authenticated = isAuthenticated();
+    setIsLoggedIn(authenticated);
+    if (authenticated) {
+      const user = getStoredUser();
+      setUserName(user?.name);
+    }
   }, []);
 
   return (
@@ -367,6 +374,9 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* Floating Chat Widget - Only show when logged in */}
+      {isLoggedIn && <FloatingChatWidget userName={userName} />}
     </div>
   );
 }

@@ -63,16 +63,20 @@ export function TaskList({
     );
   }
 
-  // Empty state (T055)
+  // Empty state (T055) - Enhanced with gradient and better visuals
   if (tasks.length === 0) {
     return (
-      <div className="text-center py-16 px-6">
+      <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 to-blue-50 rounded-2xl border border-slate-100 text-center py-16 px-6">
+        {/* Background decoration */}
+        <div className="absolute top-0 right-0 w-40 h-40 bg-blue-100 rounded-full blur-3xl opacity-40" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-100 rounded-full blur-3xl opacity-40" />
+
         {/* Illustration */}
-        <div className="relative mx-auto w-24 h-24 mb-6">
-          <div className="absolute inset-0 bg-blue-100 rounded-full opacity-50" />
-          <div className="absolute inset-2 bg-blue-50 rounded-full flex items-center justify-center">
+        <div className="relative mx-auto w-28 h-28 mb-6">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-200 to-purple-200 rounded-full animate-pulse" />
+          <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center shadow-inner">
             <svg
-              className="w-10 h-10 text-blue-500"
+              className="w-12 h-12 text-blue-500"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -88,18 +92,26 @@ export function TaskList({
           </div>
         </div>
 
-        <h3 className="text-lg font-semibold text-slate-800">
+        <h3 className="relative text-xl font-bold text-slate-800">
           No tasks yet
         </h3>
-        <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">
-          Start being productive! Add your first task using the form above.
+        <p className="relative mt-2 text-sm text-slate-500 max-w-sm mx-auto leading-relaxed">
+          Start being productive! Add your first task using the button above, or ask the AI assistant to help you get organized.
         </p>
 
-        {/* Decorative elements */}
-        <div className="mt-8 flex justify-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-blue-200" />
-          <div className="w-2 h-2 rounded-full bg-blue-300" />
-          <div className="w-2 h-2 rounded-full bg-blue-400" />
+        {/* Action hint */}
+        <div className="relative mt-6 inline-flex items-center gap-2 text-sm text-purple-600 font-medium">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Try saying &quot;Add a task to buy groceries&quot; in AI Chat
+        </div>
+
+        {/* Decorative dots */}
+        <div className="relative mt-8 flex justify-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-blue-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+          <div className="w-2 h-2 rounded-full bg-purple-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+          <div className="w-2 h-2 rounded-full bg-pink-300 animate-bounce" style={{ animationDelay: "300ms" }} />
         </div>
       </div>
     );

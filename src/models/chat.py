@@ -1,14 +1,15 @@
 """
-Pydantic models for chat functionality.
+Pydantic and SQLModel models for chat functionality.
 
-This module provides API request/response schemas for the chat interface.
-Chat history is managed by OpenAI's Conversations API (NOT stored in PostgreSQL).
+This module provides:
+1. SQLModel database tables for conversation persistence (ConversationDB, MessageDB)
+2. API request/response schemas for the chat interface
 
-Architecture:
-- PostgreSQL stores ONLY: Users, Tasks
-- Chat history stored in OpenAI Conversations API via SDK sessions
-- Backend remains stateless
-- Frontend stores only conversation_id for continuity
+Architecture (Phase III Spec Compliant):
+- PostgreSQL stores: Users, Tasks, Conversations, Messages
+- Chat history is persisted in database for stateless backend
+- Server remains stateless - all state from database
+- Conversations resume correctly after server restart
 """
 
 from __future__ import annotations
@@ -18,11 +19,56 @@ from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+from sqlmodel import JSON, Column
+from sqlmodel import Field as SQLField
+from sqlmodel import SQLModel
 
 
 def generate_uuid() -> str:
     """Generate a new UUID string."""
     return str(uuid4())
+
+
+# =============================================================================
+# SQLModel Database Tables (Phase III Spec Requirement)
+# =============================================================================
+
+
+class ConversationDB(SQLModel, table=True):
+    """
+    Database model for conversations.
+
+    Stores conversation metadata for user's chat sessions.
+    Phase III: Required for stateless backend - all state in database.
+    """
+
+    __tablename__ = "conversations"  # type: ignore[assignment]
+
+    id: str = SQLField(default_factory=generate_uuid, primary_key=True)
+    user_id: str = SQLField(foreign_key="users.id", index=True)
+    title: str | None = SQLField(default=None, max_length=200)
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = SQLField(default_factory=lambda: datetime.now(UTC))
+
+
+class MessageDB(SQLModel, table=True):
+    """
+    Database model for chat messages.
+
+    Stores individual messages within a conversation.
+    Phase III: Required for conversation history persistence.
+    """
+
+    __tablename__ = "messages"  # type: ignore[assignment]
+
+    id: str = SQLField(default_factory=generate_uuid, primary_key=True)
+    conversation_id: str = SQLField(foreign_key="conversations.id", index=True)
+    role: str = SQLField(max_length=20)  # 'user', 'assistant', 'system'
+    content: str = SQLField()
+    tool_calls: list[dict[str, Any]] | None = SQLField(
+        default=None, sa_column=Column(JSON)
+    )
+    created_at: datetime = SQLField(default_factory=lambda: datetime.now(UTC))
 
 
 # =============================================================================
@@ -168,7 +214,10 @@ class ErrorEvent(StreamEventBase):
 
 # Export all models
 __all__ = [
-    # Request/Response
+    # Database Models (SQLModel)
+    "ConversationDB",
+    "MessageDB",
+    # Request/Response (Pydantic)
     "ChatRequest",
     "ChatResponse",
     "ChatMessage",

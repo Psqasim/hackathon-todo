@@ -15,6 +15,7 @@ import { Footer } from "@/components/footer";
 import { TaskList } from "@/components/task-list";
 import { TaskForm } from "@/components/task-form";
 import { Loading } from "@/components/loading";
+import { FloatingChatWidget } from "@/components/floating-chat-widget";
 import {
   isAuthenticated,
   getStoredUser,
@@ -565,6 +566,9 @@ export default function DashboardPage() {
       </main>
 
       <Footer />
+
+      {/* Floating Chat Widget */}
+      <FloatingChatWidget userName={user.name} />
     </div>
   );
 }

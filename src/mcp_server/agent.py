@@ -2,39 +2,47 @@
 OpenAI Agents SDK Task Management Agent.
 
 This module provides a TRUE agentic system using the OpenAI Agents SDK:
-- Uses Agent class with OpenAI Conversations API for memory
-- Implements @function_tool for automatic tool execution
-- Maintains conversation context via OpenAI's server-side storage
-- NO chat history in PostgreSQL - uses SDK thread memory ONLY
+- Uses Agent class with @function_tool for automatic tool execution
+- Conversation history persisted in PostgreSQL database
+- Backend remains stateless - all state from database
+- Conversations resume correctly after server restart
 
-Architecture:
-- PostgreSQL stores ONLY: Users, Tasks
-- Chat history stored in OpenAI Conversations API (OpenAIConversationsSession)
-- Backend remains stateless
-- conversation_id = OpenAI conversation ID for continuity
+Architecture (Phase III Spec Compliant):
+- PostgreSQL stores: Users, Tasks, Conversations, Messages
+- Chat history persisted in database (NOT OpenAI Conversations API)
+- Server is stateless - state comes from database each request
+- conversation_id = our database conversation ID
 
 FR-011: Agent uses OpenAI model
 FR-012: Agent implements function calling for all task operations
-FR-014: Agent maintains conversation context via SDK sessions
+FR-014: Agent maintains conversation context via DATABASE
 FR-018: Agent provides friendly, conversational responses
+FR-030: System MUST store conversation history in PostgreSQL database
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from agents import Agent, Runner, function_tool, RunContextWrapper, OpenAIConversationsSession
+from agents import Agent, Runner, function_tool, RunContextWrapper
+from sqlmodel import Session, select
 
 from src.config import settings
+from src.db import get_engine
 from src.mcp_server.backend_client import BackendClient, BackendError
 from src.mcp_server.prompts import get_full_system_prompt
+from src.models.chat import ConversationDB, MessageDB
 
 logger = structlog.get_logger()
 
 # Model configuration
 MODEL_NAME = "gpt-4o-mini"
+
+# Maximum messages to include in context window
+MAX_CONTEXT_MESSAGES = 10
 
 
 # =============================================================================
@@ -142,13 +150,15 @@ async def list_tasks(
         task_ids = [t.get("id") for t in tasks if t.get("id")]
         ctx.context.set_task_context(task_ids, "list")
 
-        # Format task list
+        # Format task list - ALWAYS include task ID for reference
         lines = [f"Found {len(tasks)} task(s):"]
         for i, task in enumerate(tasks, 1):
+            task_id = task.get("id", "")
             status_icon = "✓" if task.get("status") == "completed" else "○"
             priority_label = f"[{task.get('priority', 'medium').capitalize()}]"
             due = f" - Due: {task.get('due_date', 'No due date')}" if task.get("due_date") else ""
             lines.append(f"{i}. {status_icon} {priority_label} {task.get('title', 'Untitled')}{due}")
+            lines.append(f"   ID: {task_id}")
             if task.get("description"):
                 lines.append(f"   Description: {task['description']}")
 
@@ -348,8 +358,10 @@ async def search_tasks(
 
         lines = [f"Found {len(tasks)} task(s) matching '{query}':"]
         for i, task in enumerate(tasks, 1):
+            task_id = task.get("id", "")
             status_icon = "✓" if task.get("status") == "completed" else "○"
             lines.append(f"{i}. {status_icon} {task.get('title', 'Untitled')}")
+            lines.append(f"   ID: {task_id}")
 
         return "\n".join(lines)
 
@@ -405,10 +417,12 @@ async def filter_tasks(
 
         lines = [f"Found {len(tasks)} matching task(s):"]
         for i, task in enumerate(tasks, 1):
+            task_id = task.get("id", "")
             status_icon = "✓" if task.get("status") == "completed" else "○"
             priority_label = f"[{task.get('priority', 'medium').capitalize()}]"
             due = f" - Due: {task.get('due_date')}" if task.get("due_date") else ""
             lines.append(f"{i}. {status_icon} {priority_label} {task.get('title', 'Untitled')}{due}")
+            lines.append(f"   ID: {task_id}")
 
         return "\n".join(lines)
 
@@ -486,22 +500,143 @@ class AgentResponse:
 
 
 # =============================================================================
-# Agent Runner - Uses OpenAI Conversations API for memory
+# Database Helper Functions
+# =============================================================================
+
+
+def get_or_create_conversation(
+    user_id: str,
+    conversation_id: str | None = None,
+) -> tuple[ConversationDB, bool]:
+    """Get existing conversation or create new one.
+
+    Args:
+        user_id: User ID for ownership
+        conversation_id: Optional existing conversation ID
+
+    Returns:
+        Tuple of (ConversationDB instance, is_new: bool)
+    """
+    engine = get_engine()
+    with Session(engine) as session:
+        if conversation_id:
+            # Try to find existing conversation
+            conv = session.exec(
+                select(ConversationDB).where(
+                    ConversationDB.id == conversation_id,
+                    ConversationDB.user_id == user_id,
+                )
+            ).first()
+            if conv:
+                return conv, False
+
+        # Create new conversation
+        conv = ConversationDB(user_id=user_id)
+        session.add(conv)
+        session.commit()
+        session.refresh(conv)
+        logger.info("conversation_created", conversation_id=conv.id, user_id=user_id)
+        return conv, True
+
+
+def get_conversation_history(
+    conversation_id: str,
+    limit: int = MAX_CONTEXT_MESSAGES,
+) -> list[dict[str, Any]]:
+    """Fetch conversation history from database.
+
+    Args:
+        conversation_id: Conversation ID
+        limit: Maximum number of messages to return
+
+    Returns:
+        List of messages in OpenAI format
+    """
+    engine = get_engine()
+    with Session(engine) as session:
+        messages = session.exec(
+            select(MessageDB)
+            .where(MessageDB.conversation_id == conversation_id)
+            .order_by(MessageDB.created_at.desc())
+            .limit(limit)
+        ).all()
+
+        # Reverse to get chronological order
+        messages = list(reversed(messages))
+
+        # Convert to OpenAI format
+        return [
+            {"role": msg.role, "content": msg.content}
+            for msg in messages
+        ]
+
+
+def save_message(
+    conversation_id: str,
+    role: str,
+    content: str,
+    tool_calls: list[dict[str, Any]] | None = None,
+) -> MessageDB:
+    """Save a message to the database.
+
+    Args:
+        conversation_id: Conversation ID
+        role: Message role (user, assistant, system)
+        content: Message content
+        tool_calls: Optional tool calls made
+
+    Returns:
+        Created MessageDB instance
+    """
+    engine = get_engine()
+    with Session(engine) as session:
+        # Update conversation's updated_at
+        conv = session.exec(
+            select(ConversationDB).where(ConversationDB.id == conversation_id)
+        ).first()
+        if conv:
+            conv.updated_at = datetime.now(UTC)
+            # Set title from first user message
+            if conv.title is None and role == "user":
+                conv.title = content[:50] + ("..." if len(content) > 50 else "")
+            session.add(conv)
+
+        # Save message
+        msg = MessageDB(
+            conversation_id=conversation_id,
+            role=role,
+            content=content,
+            tool_calls=tool_calls,
+        )
+        session.add(msg)
+        session.commit()
+        session.refresh(msg)
+
+        logger.debug(
+            "message_saved",
+            conversation_id=conversation_id,
+            role=role,
+            message_id=msg.id,
+        )
+        return msg
+
+
+# =============================================================================
+# Agent Runner - Uses PostgreSQL Database for memory (Phase III Spec Compliant)
 # =============================================================================
 
 
 class TaskAgentRunner:
-    """Runs the task agent with OpenAI Conversations API for memory.
+    """Runs the task agent with PostgreSQL database for memory.
 
-    Uses OpenAIConversationsSession to store conversation history
-    on OpenAI's servers, NOT in PostgreSQL. This makes the backend
-    completely stateless.
+    All conversation history is stored in PostgreSQL, making the backend
+    completely stateless. Conversations persist across server restarts.
 
-    Architecture:
-    - Each conversation_id maps to an OpenAI conversation
-    - History is stored/retrieved from OpenAI's Conversations API
-    - Backend holds NO conversation state
-    - PostgreSQL stores ONLY users and tasks
+    Architecture (Phase III Spec Compliant):
+    - Each conversation_id maps to our database conversation
+    - History is stored/retrieved from PostgreSQL
+    - Backend holds NO conversation state in memory
+    - PostgreSQL stores users, tasks, conversations, messages
     """
 
     def __init__(self, token: str | None = None):
@@ -521,51 +656,65 @@ class TaskAgentRunner:
     ) -> AgentResponse:
         """Run the agent with a user message.
 
-        Uses OpenAI Conversations API for automatic conversation
-        memory management. No local storage needed.
+        Uses PostgreSQL for conversation memory management.
+        Backend remains completely stateless.
 
         Args:
             user_id: Authenticated user ID
             message: User's natural language message
-            conversation_id: OpenAI conversation ID to resume (optional)
+            conversation_id: Database conversation ID to resume (optional)
 
         Returns:
-            AgentResponse with content and the OpenAI conversation_id
+            AgentResponse with content and the database conversation_id
         """
-        # Create session - if conversation_id provided, resume that conversation
-        # Otherwise, OpenAI creates a new conversation automatically
-        session = OpenAIConversationsSession(
-            conversation_id=conversation_id
+        # Step 1: Get or create conversation in database
+        conv, is_new = get_or_create_conversation(user_id, conversation_id)
+        actual_conversation_id = conv.id
+
+        logger.info(
+            "agent_processing",
+            user_id=user_id,
+            conversation_id=actual_conversation_id,
+            is_new_conversation=is_new,
+            message_length=len(message),
         )
 
-        # Create context for tools (user_id for backend API calls)
+        # Step 2: Fetch conversation history from database
+        history = get_conversation_history(actual_conversation_id)
+
+        # Step 3: Save user message to database BEFORE processing
+        save_message(actual_conversation_id, "user", message)
+
+        # Step 4: Create context for tools
         context = AgentContext(
             user_id=user_id,
             backend=BackendClient(token=self._token),
         )
 
-        logger.info(
-            "agent_processing",
-            user_id=user_id,
-            conversation_id=conversation_id or "new",
-            message_length=len(message),
-        )
-
         try:
-            # Run agent with session - OpenAI manages conversation history
+            # Step 5: Build input with history for the agent
+            # The agent will receive history as part of the conversation
+            input_with_context = message
+            if history:
+                # Format history as context for the agent
+                history_text = "\n".join([
+                    f"{msg['role'].capitalize()}: {msg['content']}"
+                    for msg in history[-MAX_CONTEXT_MESSAGES:]
+                ])
+                input_with_context = f"Previous conversation:\n{history_text}\n\nUser: {message}"
+
+            # Step 6: Run agent (no session - we manage memory ourselves)
             result = await Runner.run(
                 self._agent,
-                input=message,
+                input=input_with_context,
                 context=context,
-                session=session,  # OpenAI Conversations API handles memory
             )
 
-            # Get the conversation ID from the session (for continuity)
-            # After first message, session._session_id contains the OpenAI conversation ID
-            actual_conversation_id = await session._get_session_id()
-
-            # Extract the final output
+            # Step 7: Extract the final output
             final_output = result.final_output or ""
+
+            # Step 8: Save assistant response to database
+            save_message(actual_conversation_id, "assistant", final_output)
 
             logger.info(
                 "agent_response_generated",
@@ -581,14 +730,13 @@ class TaskAgentRunner:
 
         except Exception as e:
             logger.exception("agent_run_failed", error=str(e))
-            # Try to get conversation ID even on error
-            try:
-                actual_conversation_id = await session._get_session_id()
-            except Exception:
-                actual_conversation_id = conversation_id or ""
+
+            # Save error response to database for continuity
+            error_response = f"I encountered an error: {e!s}. Please try again."
+            save_message(actual_conversation_id, "assistant", error_response)
 
             return AgentResponse(
-                content=f"I encountered an error: {e!s}. Please try again.",
+                content=error_response,
                 tool_calls=[],
                 conversation_id=actual_conversation_id,
             )
@@ -652,6 +800,11 @@ __all__ = [
     "AgentContext",
     "create_task_agent",
     "get_task_agent",
+    # Database helper functions
+    "get_or_create_conversation",
+    "get_conversation_history",
+    "save_message",
+    # Tool functions
     "add_task",
     "list_tasks",
     "get_task",

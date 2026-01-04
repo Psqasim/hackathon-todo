@@ -8,7 +8,7 @@
  */
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { signout, type User } from "@/lib/auth-client";
 
@@ -18,9 +18,15 @@ interface HeaderProps {
 
 export function Header({ user }: HeaderProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Determine active route
+  const isDashboard = pathname === "/dashboard";
+  const isChat = pathname === "/chat";
+  const isHome = pathname === "/";
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -90,27 +96,45 @@ export function Header({ user }: HeaderProps) {
               <h1 className="text-xl font-bold text-slate-800">TaskFlow</h1>
             </Link>
 
-            {/* Home Link */}
-            <Link
-              href="/"
-              className="hidden sm:flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-50"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              Home
-            </Link>
+            {/* Navigation Links with active state */}
+            <nav className="flex items-center gap-1">
+              {/* Dashboard Link */}
+              <Link
+                href="/dashboard"
+                className={`
+                  flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition-all duration-200
+                  ${isDashboard
+                    ? "text-blue-600 bg-blue-50"
+                    : "text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+                  }
+                `}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+                <span className="hidden sm:inline">Dashboard</span>
+              </Link>
 
-            {/* AI Chat Link */}
-            <Link
-              href="/chat"
-              className="flex items-center gap-1 text-sm text-slate-500 hover:text-purple-600 transition-colors px-3 py-1.5 rounded-lg hover:bg-purple-50"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <span className="hidden sm:inline">AI Chat</span>
-            </Link>
+              {/* AI Chat Link */}
+              <Link
+                href="/chat"
+                className={`
+                  flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg transition-all duration-200
+                  ${isChat
+                    ? "text-purple-600 bg-purple-50"
+                    : "text-slate-500 hover:text-purple-600 hover:bg-purple-50"
+                  }
+                `}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <span className="hidden sm:inline">AI Chat</span>
+                {isChat && (
+                  <span className="hidden sm:inline-flex items-center justify-center w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                )}
+              </Link>
+            </nav>
           </div>
 
           {/* User Menu */}

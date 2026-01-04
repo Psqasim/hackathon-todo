@@ -48,9 +48,9 @@
 
 ### B. Chat Models
 
-- [ ] T011 [P] [Found] Create Pydantic models for chat in `src/models/chat.py`: ChatRequest, ChatResponse, ConversationSummary (FR-030)
-- [ ] T012 [P] [Found] Create database models in `src/models/chat.py`: ConversationDB, MessageDB with SQLModel (FR-030)
-- [ ] T013 [Found] Add conversation tables to `src/db.py` create_tables function (FR-030)
+- [x] T011 [P] [Found] Create Pydantic models for chat in `src/models/chat.py`: ChatRequest, ChatResponse, ConversationSummary (FR-030)
+- [x] T012 [P] [Found] Create database models in `src/models/chat.py`: ConversationDB, MessageDB with SQLModel (FR-030)
+- [x] T013 [Found] Add conversation tables to `src/db.py` create_tables function (FR-030)
 
 ### C. NLP Utilities
 
@@ -60,9 +60,9 @@
 
 ### D. OpenAI Agent Core
 
-- [ ] T017 [Found] Create TaskAgent class in `src/mcp_server/agent.py` with OpenAI client initialization (FR-011, FR-012)
-- [ ] T018 [Found] Implement function calling tools list in `src/mcp_server/agent.py` mapping to MCP tools (FR-012)
-- [ ] T019 [Found] Implement conversation history management in `src/mcp_server/memory.py` (FR-014)
+- [x] T017 [Found] Create TaskAgent class in `src/mcp_server/agent.py` with OpenAI client initialization (FR-011, FR-012)
+- [x] T018 [Found] Implement function calling tools list in `src/mcp_server/agent.py` mapping to MCP tools (FR-012)
+- [x] T019 [Found] Implement conversation history management in `src/mcp_server/agent.py` using PostgreSQL (FR-014, FR-030)
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -319,30 +319,30 @@
 
 **Purpose**: REST endpoints for frontend to communicate with agent
 
-- [ ] T064 Add POST `/api/chat` endpoint in `src/mcp_server/server.py` (FR-027)
+- [x] T064 Add POST `/api/chat` endpoint in `src/interfaces/api.py` (FR-027)
   - Accept ChatRequest (message, optional conversation_id)
   - Validate JWT token from Authorization header
-  - Return SSE streaming response
+  - Return JSON response with conversation_id
 
 - [ ] T065 Implement SSE streaming response handler in `src/mcp_server/server.py` (FR-013)
   - Stream: message_start, content_delta, tool_call, tool_result, message_end events
   - Handle errors gracefully with error event
 
-- [ ] T066 Add GET `/api/conversations` endpoint in `src/mcp_server/server.py` (FR-031)
-  - Return user's conversation list with pagination
+- [x] T066 Add GET `/api/conversations` endpoint in `src/interfaces/api.py` (FR-031)
+  - Return user's conversation list from database with pagination
   - Include message count and timestamps
 
-- [ ] T067 Add GET `/api/conversations/{id}` endpoint in `src/mcp_server/server.py`
-  - Return conversation with full message history
+- [x] T067 Add GET `/api/conversations/{id}` endpoint in `src/interfaces/api.py`
+  - Return conversation with full message history from database
   - Validate user ownership (FR-029)
 
-- [ ] T068 Add DELETE `/api/conversations/{id}` endpoint in `src/mcp_server/server.py`
-  - Delete conversation and all messages
+- [x] T068 Add DELETE `/api/conversations/{id}` endpoint in `src/interfaces/api.py`
+  - Delete conversation and all messages from database
   - Validate user ownership
 
-- [ ] T069 Implement conversation persistence in `src/mcp_server/memory.py` (FR-030, FR-032)
+- [x] T069 Implement conversation persistence in `src/mcp_server/agent.py` (FR-030, FR-032)
   - Save messages to database after each exchange
-  - Load conversation history on resume
+  - Load conversation history on resume from database
 
 - [ ] T070 Write integration tests for chat API in `tests/integration/test_chat_api.py`
   - Test chat endpoint with valid JWT
@@ -357,12 +357,12 @@
 
 ### Chat Page & Layout
 
-- [ ] T071 [P] Create chat page at `frontend/app/chat/page.tsx` (FR-019)
-  - Server Component with auth check (FR-020)
+- [x] T071 [P] Create chat page at `frontend/app/chat/page.tsx` (FR-019)
+  - Client Component with auth check (FR-020)
   - Redirect to login if unauthenticated
-  - Import ChatInterface client component
+  - Database-backed conversation management
 
-- [ ] T072 [P] Add Chat link to navigation in `frontend/components/navigation.tsx`
+- [x] T072 [P] Add Chat link to navigation in `frontend/components/navigation.tsx`
   - Add "Chat" link to main navigation
   - Highlight when on /chat route
 
@@ -461,26 +461,25 @@
 
 **Purpose**: Store conversation history in PostgreSQL
 
-- [ ] T089 Create database migration for conversation tables
-  - Add Conversation table: id, user_id, title, created_at, updated_at
-  - Add Message table: id, conversation_id, role, content, tool_calls (JSON), created_at
-  - Add indexes on user_id and conversation_id
+- [x] T089 Create database models for conversation tables in `src/models/chat.py`
+  - Add ConversationDB table: id, user_id, title, created_at, updated_at
+  - Add MessageDB table: id, conversation_id, role, content, tool_calls (JSON), created_at
+  - Indexes configured via SQLModel field definitions
 
-- [ ] T090 Implement conversation CRUD in `src/mcp_server/memory.py`
-  - create_conversation(user_id) -> conversation_id
-  - get_conversation(conversation_id) -> Conversation with messages
-  - update_conversation(conversation_id, title)
-  - delete_conversation(conversation_id)
+- [x] T090 Implement conversation CRUD in `src/mcp_server/agent.py`
+  - get_or_create_conversation(user_id) -> conversation_id
+  - get_conversation_history(conversation_id) -> messages
+  - Conversation delete via API endpoint
 
-- [ ] T091 Implement message persistence in `src/mcp_server/memory.py`
-  - add_message(conversation_id, role, content, tool_calls?)
-  - get_messages(conversation_id, limit=10) -> list[Message]
+- [x] T091 Implement message persistence in `src/mcp_server/agent.py`
+  - save_message(conversation_id, role, content, tool_calls?)
+  - get_conversation_history(conversation_id, limit=10) -> list[Message]
 
-- [ ] T092 Integrate persistence with chat flow
+- [x] T092 Integrate persistence with chat flow
   - Create conversation on first message if no conversation_id
-  - Save user message immediately
+  - Save user message immediately before agent processing
   - Save assistant message after completion
-  - Auto-generate conversation title from first message
+  - Auto-generate conversation title from first user message
 
 - [ ] T093 Write integration tests for persistence in `tests/integration/test_chat_persistence.py`
   - Test conversation creation

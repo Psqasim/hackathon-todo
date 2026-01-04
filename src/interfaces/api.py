@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import secrets
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
+from typing import Any, AsyncGenerator
 from urllib.parse import urlencode
 
 import httpx
@@ -911,22 +911,26 @@ async def complete_task_endpoint(
 
 
 # =============================================================================
-# Chat Endpoints (Phase III)
+# Chat Endpoints (Phase III - Spec Compliant)
 # =============================================================================
 #
-# Architecture:
-# - Chat history is stored in OpenAI Conversations API, NOT PostgreSQL
-# - Backend is stateless - no conversation/message tables
-# - Frontend stores conversation_ids in localStorage for sidebar
-# - PostgreSQL stores ONLY: Users, Tasks
+# Architecture (Phase III Spec Requirement):
+# - Chat history is stored in PostgreSQL (Conversation, Message tables)
+# - Backend is stateless - all state comes from database
+# - Conversations persist across server restarts
+# - Frontend fetches conversations and messages from API
 # =============================================================================
 
 from src.models.chat import (
     ChatMessage,
     ChatRequest,
     ChatResponse,
+    ConversationDB,
     ConversationListResponse,
+    ConversationSummary,
+    ConversationDetail,
     DeleteResponse,
+    MessageDB,
 )
 
 
@@ -940,6 +944,7 @@ async def chat_endpoint(
 
     FR-020: POST /api/chat accepts message and optional conversation_id
     FR-021: Returns AI response with conversation_id for continuity
+    FR-030: Stores conversation history in PostgreSQL database
 
     Args:
         request: Chat message and optional conversation_id
@@ -987,6 +992,69 @@ async def chat_endpoint(
         )
 
 
+@app.post("/api/users/{user_id}/chat", response_model=ChatResponse, tags=["chat"])
+async def chat_endpoint_with_user_id(
+    user_id: str,
+    request: ChatRequest,
+    current_user: CurrentUser,
+) -> ChatResponse:
+    """
+    Send a message to the AI chatbot (spec-compliant endpoint).
+
+    POST /api/{user_id}/chat as required by Phase III spec.
+    Stores all messages in PostgreSQL for stateless backend.
+
+    Args:
+        user_id: User ID from path
+        request: Chat message and optional conversation_id
+
+    Returns:
+        AI response with conversation_id
+    """
+    from src.mcp_server.agent import TaskAgent
+
+    # Authorization check
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to chat as this user",
+        )
+
+    # Create agent (no token needed for this endpoint pattern)
+    agent = TaskAgent()
+
+    try:
+        response = await agent.process_message(
+            user_id=user_id,
+            message=request.message,
+            conversation_id=request.conversation_id,
+        )
+
+        # Create response message
+        assistant_message = ChatMessage(
+            role="assistant",
+            content=response.content,
+        )
+
+        logger.info(
+            "chat_message_processed",
+            user_id=user_id,
+            conversation_id=response.conversation_id,
+            tool_calls=len(response.tool_calls),
+        )
+
+        return ChatResponse(
+            conversation_id=response.conversation_id,
+            message=assistant_message,
+        )
+    except Exception as e:
+        logger.error("chat_error", error=str(e), user_id=user_id)
+        raise HTTPException(
+            status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat processing failed: {e!s}",
+        )
+
+
 @app.get("/api/conversations", response_model=ConversationListResponse, tags=["chat"])
 async def list_conversations(
     current_user: CurrentUser,
@@ -994,19 +1062,306 @@ async def list_conversations(
     offset: int = Query(default=0, ge=0),
 ) -> ConversationListResponse:
     """
-    List user's conversations.
+    List user's conversations from database.
 
-    NOTE: Chat history is stored in OpenAI Conversations API, NOT PostgreSQL.
-    The frontend manages conversation_id references in localStorage.
-    This endpoint returns an empty list since we don't track conversations server-side.
-
-    For the sidebar to work, frontend stores conversation_ids locally and
-    displays them. When clicked, it sends the conversation_id to /api/chat
-    to continue that conversation via OpenAI's API.
+    Phase III Spec Compliant: Returns conversations from PostgreSQL.
     """
-    # No server-side conversation storage - frontend uses localStorage
-    # Return empty list to maintain API compatibility
-    return ConversationListResponse(conversations=[], total=0)
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Count total conversations
+        from sqlalchemy import func
+        total = session.exec(
+            select(func.count()).select_from(ConversationDB).where(
+                ConversationDB.user_id == current_user
+            )
+        ).one()
+
+        # Get conversations with pagination
+        convs = session.exec(
+            select(ConversationDB)
+            .where(ConversationDB.user_id == current_user)
+            .order_by(ConversationDB.updated_at.desc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+
+        # Count messages per conversation
+        conversations = []
+        for conv in convs:
+            msg_count = session.exec(
+                select(func.count()).select_from(MessageDB).where(
+                    MessageDB.conversation_id == conv.id
+                )
+            ).one()
+
+            conversations.append(
+                ConversationSummary(
+                    id=conv.id,
+                    title=conv.title,
+                    created_at=conv.created_at,
+                    updated_at=conv.updated_at,
+                    message_count=msg_count,
+                )
+            )
+
+        return ConversationListResponse(
+            conversations=conversations,
+            total=total,
+        )
+
+
+@app.get("/api/users/{user_id}/conversations", response_model=ConversationListResponse, tags=["chat"])
+async def list_user_conversations(
+    user_id: str,
+    current_user: CurrentUser,
+    limit: int = Query(default=20, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ConversationListResponse:
+    """
+    List user's conversations from database (spec-compliant endpoint).
+
+    GET /api/{user_id}/conversations as required by Phase III spec.
+    """
+    # Authorization check
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this user's conversations",
+        )
+
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Count total conversations
+        from sqlalchemy import func
+        total = session.exec(
+            select(func.count()).select_from(ConversationDB).where(
+                ConversationDB.user_id == user_id
+            )
+        ).one()
+
+        # Get conversations with pagination
+        convs = session.exec(
+            select(ConversationDB)
+            .where(ConversationDB.user_id == user_id)
+            .order_by(ConversationDB.updated_at.desc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+
+        # Count messages per conversation
+        conversations = []
+        for conv in convs:
+            msg_count = session.exec(
+                select(func.count()).select_from(MessageDB).where(
+                    MessageDB.conversation_id == conv.id
+                )
+            ).one()
+
+            conversations.append(
+                ConversationSummary(
+                    id=conv.id,
+                    title=conv.title,
+                    created_at=conv.created_at,
+                    updated_at=conv.updated_at,
+                    message_count=msg_count,
+                )
+            )
+
+        return ConversationListResponse(
+            conversations=conversations,
+            total=total,
+        )
+
+
+@app.get("/api/conversations/{conversation_id}", response_model=ConversationDetail, tags=["chat"])
+async def get_conversation_by_id(
+    conversation_id: str,
+    current_user: CurrentUser,
+) -> ConversationDetail:
+    """
+    Get a conversation with all messages by conversation ID.
+
+    GET /api/conversations/{id} - returns conversation with message history.
+    Uses the authenticated user's ID for authorization.
+    """
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Get conversation - verify it belongs to current user
+        conv = session.exec(
+            select(ConversationDB).where(
+                ConversationDB.id == conversation_id,
+                ConversationDB.user_id == current_user,
+            )
+        ).first()
+
+        if not conv:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        # Get messages
+        messages_db = session.exec(
+            select(MessageDB)
+            .where(MessageDB.conversation_id == conversation_id)
+            .order_by(MessageDB.created_at.asc())
+        ).all()
+
+        messages = [
+            ChatMessage(
+                id=msg.id,
+                role=msg.role,  # type: ignore
+                content=msg.content,
+                tool_calls=None,
+                created_at=msg.created_at,
+            )
+            for msg in messages_db
+        ]
+
+        return ConversationDetail(
+            id=conv.id,
+            title=conv.title,
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+            messages=messages,
+        )
+
+
+@app.get("/api/users/{user_id}/conversations/{conversation_id}", response_model=ConversationDetail, tags=["chat"])
+async def get_conversation(
+    user_id: str,
+    conversation_id: str,
+    current_user: CurrentUser,
+) -> ConversationDetail:
+    """
+    Get a conversation with all messages.
+
+    GET /api/{user_id}/conversations/{id} - returns conversation with message history.
+    """
+    # Authorization check
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this conversation",
+        )
+
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Get conversation
+        conv = session.exec(
+            select(ConversationDB).where(
+                ConversationDB.id == conversation_id,
+                ConversationDB.user_id == user_id,
+            )
+        ).first()
+
+        if not conv:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        # Get messages
+        messages_db = session.exec(
+            select(MessageDB)
+            .where(MessageDB.conversation_id == conversation_id)
+            .order_by(MessageDB.created_at.asc())
+        ).all()
+
+        messages = [
+            ChatMessage(
+                id=msg.id,
+                role=msg.role,  # type: ignore
+                content=msg.content,
+                tool_calls=None,  # Tool calls stored separately
+                created_at=msg.created_at,
+            )
+            for msg in messages_db
+        ]
+
+        return ConversationDetail(
+            id=conv.id,
+            title=conv.title,
+            created_at=conv.created_at,
+            updated_at=conv.updated_at,
+            messages=messages,
+        )
+
+
+@app.get("/api/users/{user_id}/conversations/{conversation_id}/messages", tags=["chat"])
+async def get_conversation_messages(
+    user_id: str,
+    conversation_id: str,
+    current_user: CurrentUser,
+    limit: int = Query(default=50, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> dict[str, Any]:
+    """
+    Get messages for a conversation with pagination.
+
+    GET /api/{user_id}/conversations/{id}/messages - returns paginated messages.
+    """
+    # Authorization check
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this conversation",
+        )
+
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Verify conversation exists and belongs to user
+        conv = session.exec(
+            select(ConversationDB).where(
+                ConversationDB.id == conversation_id,
+                ConversationDB.user_id == user_id,
+            )
+        ).first()
+
+        if not conv:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        # Count total messages
+        from sqlalchemy import func
+        total = session.exec(
+            select(func.count()).select_from(MessageDB).where(
+                MessageDB.conversation_id == conversation_id
+            )
+        ).one()
+
+        # Get messages with pagination
+        messages_db = session.exec(
+            select(MessageDB)
+            .where(MessageDB.conversation_id == conversation_id)
+            .order_by(MessageDB.created_at.asc())
+            .offset(offset)
+            .limit(limit)
+        ).all()
+
+        messages = [
+            {
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "created_at": msg.created_at.isoformat(),
+            }
+            for msg in messages_db
+        ]
+
+        return {
+            "messages": messages,
+            "total": total,
+            "offset": offset,
+            "limit": limit,
+        }
 
 
 @app.delete(
@@ -1019,17 +1374,37 @@ async def delete_conversation(
     current_user: CurrentUser,
 ) -> DeleteResponse:
     """
-    Delete a conversation.
+    Delete a conversation and all its messages.
 
-    NOTE: This deletes the conversation from OpenAI's Conversations API.
-    Frontend should also remove the conversation_id from localStorage.
+    Phase III Spec Compliant: Deletes from PostgreSQL database.
     """
-    from openai import AsyncOpenAI
+    engine = get_engine()
 
-    try:
-        # Delete from OpenAI Conversations API
-        client = AsyncOpenAI()
-        await client.conversations.delete(conversation_id=conversation_id)
+    with Session(engine) as session:
+        # Find conversation
+        conv = session.exec(
+            select(ConversationDB).where(
+                ConversationDB.id == conversation_id,
+                ConversationDB.user_id == current_user,
+            )
+        ).first()
+
+        if not conv:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        # Delete all messages first using bulk delete for FK safety
+        from sqlalchemy import delete
+        session.exec(
+            delete(MessageDB).where(MessageDB.conversation_id == conversation_id)  # type: ignore
+        )
+        session.flush()  # Ensure messages are deleted before conversation
+
+        # Delete conversation
+        session.delete(conv)
+        session.commit()
 
         logger.info(
             "conversation_deleted",
@@ -1038,13 +1413,62 @@ async def delete_conversation(
         )
 
         return DeleteResponse(deleted=True, id=conversation_id)
-    except Exception as e:
-        logger.error(
-            "conversation_delete_failed",
-            conversation_id=conversation_id,
-            error=str(e),
+
+
+@app.delete(
+    "/api/users/{user_id}/conversations/{conversation_id}",
+    response_model=DeleteResponse,
+    tags=["chat"],
+)
+async def delete_user_conversation(
+    user_id: str,
+    conversation_id: str,
+    current_user: CurrentUser,
+) -> DeleteResponse:
+    """
+    Delete a conversation and all its messages (spec-compliant endpoint).
+    """
+    # Authorization check
+    if user_id != current_user:
+        raise HTTPException(
+            status_code=http_status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to delete this conversation",
         )
-        # Return success anyway since frontend will remove from localStorage
+
+    engine = get_engine()
+
+    with Session(engine) as session:
+        # Find conversation
+        conv = session.exec(
+            select(ConversationDB).where(
+                ConversationDB.id == conversation_id,
+                ConversationDB.user_id == user_id,
+            )
+        ).first()
+
+        if not conv:
+            raise HTTPException(
+                status_code=http_status.HTTP_404_NOT_FOUND,
+                detail="Conversation not found",
+            )
+
+        # Delete all messages first using bulk delete for FK safety
+        from sqlalchemy import delete
+        session.exec(
+            delete(MessageDB).where(MessageDB.conversation_id == conversation_id)  # type: ignore
+        )
+        session.flush()  # Ensure messages are deleted before conversation
+
+        # Delete conversation
+        session.delete(conv)
+        session.commit()
+
+        logger.info(
+            "conversation_deleted",
+            conversation_id=conversation_id,
+            user_id=user_id,
+        )
+
         return DeleteResponse(deleted=True, id=conversation_id)
 
 

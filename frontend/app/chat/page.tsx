@@ -5,15 +5,15 @@
  *
  * Phase III: Mobile-first chat interface for natural language task management.
  *
- * Architecture:
- * - Chat history stored in OpenAI Conversations API (NOT PostgreSQL)
- * - conversation_ids stored in localStorage for sidebar
- * - Each conversation maps to one OpenAI conversation thread
- * - Backend is stateless
+ * Architecture (Phase III Spec Compliant):
+ * - Chat history stored in PostgreSQL database (NOT OpenAI Conversations API)
+ * - Conversations and messages fetched from backend API
+ * - Backend is stateless - all state comes from database
+ * - Conversations persist across server restarts
  *
  * Features:
- * - ChatGPT-style conversation sidebar (localStorage-based)
- * - Message history per conversation (session-only, from OpenAI memory)
+ * - ChatGPT-style conversation sidebar (database-backed)
+ * - Message history per conversation (persisted in database)
  * - Quick action suggestions
  */
 
@@ -32,28 +32,19 @@ import {
 import {
   sendChatMessage,
   deleteConversation,
+  getConversations,
+  getConversation,
   type ChatMessage,
   type ChatResponse,
+  type ConversationSummary,
   ApiError,
 } from "@/lib/api-client";
 
 // =============================================================================
-// Types for localStorage conversation storage
+// Types and helpers (Database-backed - Phase III Spec Compliant)
 // =============================================================================
 
-interface StoredConversation {
-  id: string;
-  title: string;
-  createdAt: string;
-  updatedAt: string;
-  // Note: Messages are NOT stored - they live in OpenAI's Conversations API
-}
-
-// =============================================================================
-// localStorage helpers
-// =============================================================================
-
-const CONVERSATIONS_KEY = "taskflow_conversations";
+// Privacy consent still stored locally (user preference)
 const PRIVACY_CONSENT_KEY = "taskflow_chat_privacy_consent";
 
 function hasPrivacyConsent(): boolean {
@@ -65,46 +56,11 @@ function setPrivacyConsent(): void {
   localStorage.setItem(PRIVACY_CONSENT_KEY, "true");
 }
 
-function getStoredConversations(): StoredConversation[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(CONVERSATIONS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveConversation(conv: StoredConversation) {
-  const conversations = getStoredConversations();
-  const existingIndex = conversations.findIndex((c) => c.id === conv.id);
-
-  if (existingIndex >= 0) {
-    // Update existing
-    conversations[existingIndex] = conv;
-  } else {
-    // Add new at beginning
-    conversations.unshift(conv);
-  }
-
-  // Keep only last 50 conversations
-  const trimmed = conversations.slice(0, 50);
-  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(trimmed));
-  return trimmed;
-}
-
-function removeStoredConversation(id: string): StoredConversation[] {
-  const conversations = getStoredConversations();
-  const filtered = conversations.filter((c) => c.id !== id);
-  localStorage.setItem(CONVERSATIONS_KEY, JSON.stringify(filtered));
-  return filtered;
-}
-
 // =============================================================================
 // Components
 // =============================================================================
 
-// Message bubble component
+// Message bubble component - ChatGPT style
 function MessageBubble({
   message,
   isUser,
@@ -114,52 +70,66 @@ function MessageBubble({
 }) {
   return (
     <div
-      className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}
+      className={`
+        flex gap-3 mb-6 animate-in slide-in-from-bottom-2 duration-300
+        ${isUser ? "flex-row-reverse" : "flex-row"}
+      `}
     >
+      {/* Avatar */}
       <div
         className={`
-          max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3
-          ${
-            isUser
-              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-br-md"
-              : "bg-white border border-slate-200 text-slate-800 rounded-bl-md shadow-sm"
+          w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center
+          shadow-sm
+          ${isUser
+            ? "bg-gradient-to-br from-blue-500 to-blue-600"
+            : "bg-gradient-to-br from-purple-500 to-pink-500"
           }
         `}
       >
-        {/* Message content */}
-        <div className="text-sm sm:text-base whitespace-pre-wrap break-words">
-          {message.content}
+        {isUser ? (
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+        )}
+      </div>
+
+      {/* Message content */}
+      <div className={`flex flex-col gap-1 max-w-[80%] sm:max-w-[70%] ${isUser ? "items-end" : "items-start"}`}>
+        <div
+          className={`
+            rounded-2xl px-4 py-3
+            ${isUser
+              ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-tr-sm"
+              : "bg-white border border-slate-200 text-slate-800 rounded-tl-sm shadow-sm"
+            }
+          `}
+        >
+          {/* Message text */}
+          <div className="text-sm sm:text-[15px] leading-relaxed whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
+
+          {/* Tool calls indicator (for assistant messages) */}
+          {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
+            <div className="mt-2 pt-2 border-t border-slate-100">
+              <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                <span className="text-emerald-600 font-medium">
+                  {message.tool_calls.length} action{message.tool_calls.length > 1 ? "s" : ""} performed
+                </span>
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Tool calls indicator (for assistant messages) */}
-        {!isUser && message.tool_calls && message.tool_calls.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-slate-100">
-            <p className="text-xs text-slate-400 flex items-center gap-1">
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
-              {message.tool_calls.length} action
-              {message.tool_calls.length > 1 ? "s" : ""} performed
-            </p>
-          </div>
-        )}
-
         {/* Timestamp */}
-        <p
-          className={`text-xs mt-1 ${
-            isUser ? "text-blue-200" : "text-slate-400"
-          }`}
-        >
+        <p className="text-xs text-slate-400 px-1">
           {new Date(message.created_at).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -170,29 +140,38 @@ function MessageBubble({
   );
 }
 
-// Typing indicator component
+// Typing indicator component - ChatGPT style
 function TypingIndicator() {
   return (
-    <div className="flex justify-start mb-4">
-      <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-1">
+    <div className="flex gap-3 mb-6 animate-in fade-in duration-300">
+      {/* Avatar */}
+      <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center bg-gradient-to-br from-purple-500 to-pink-500 shadow-sm">
+        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+      </div>
+
+      {/* Typing bubble */}
+      <div className="bg-white border border-slate-200 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
           <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
           <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
         </div>
+        <p className="text-xs text-slate-400 mt-1.5">TaskFlow AI is thinking...</p>
       </div>
     </div>
   );
 }
 
-// Conversation Sidebar Item
+// Conversation Sidebar Item (uses ConversationSummary from database)
 function ConversationItem({
   conversation,
   isActive,
   onClick,
   onDelete,
 }: {
-  conversation: StoredConversation;
+  conversation: ConversationSummary;
   isActive: boolean;
   onClick: () => void;
   onDelete: () => void;
@@ -234,7 +213,7 @@ function ConversationItem({
           {conversation.title || "New conversation"}
         </p>
         <p className="text-xs text-slate-400 truncate">
-          {new Date(conversation.updatedAt).toLocaleDateString()}
+          {new Date(conversation.updated_at).toLocaleDateString()} • {conversation.message_count} msgs
         </p>
       </div>
 
@@ -382,9 +361,10 @@ export default function ChatPage() {
   const [error, setError] = useState<string>("");
   const [conversationId, setConversationId] = useState<string | undefined>();
 
-  // Sidebar state - conversations stored in localStorage
+  // Sidebar state - conversations fetched from database API
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [conversations, setConversations] = useState<StoredConversation[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
 
   // Privacy consent state
   const [showPrivacyNotice, setShowPrivacyNotice] = useState(false);
@@ -447,43 +427,71 @@ export default function ChatPage() {
     router.push("/dashboard");
   };
 
-  // Load conversations from localStorage when user is authenticated
-  useEffect(() => {
-    if (user) {
-      setConversations(getStoredConversations());
+  // Load conversations from database API when user is authenticated
+  // (Phase III Spec Compliant: Database-backed conversations)
+  const loadConversations = useCallback(async () => {
+    if (!user) return;
+
+    setLoadingConversations(true);
+    try {
+      const response = await getConversations(50, 0);
+      setConversations(response.conversations);
+    } catch (err) {
+      console.error("Failed to load conversations:", err);
+      // Don't show error to user - sidebar will just be empty
+    } finally {
+      setLoadingConversations(false);
     }
   }, [user]);
 
-  // Select a conversation (just sets the conversation ID, OpenAI has the history)
-  const selectConversation = (conv: StoredConversation) => {
-    // Clear current messages (will be populated by continuing the conversation)
-    setMessages([]);
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user, loadConversations]);
+
+  // Select a conversation and load its messages from database
+  // (Phase III Spec Compliant: Load messages from database API)
+  const selectConversation = async (conv: ConversationSummary) => {
     setConversationId(conv.id);
     setSidebarOpen(false);
-    // Note: We don't fetch old messages - OpenAI's Conversations API
-    // maintains the context, so the agent will remember previous messages
+    setIsLoading(true);
+    setError("");
+
+    try {
+      // Fetch conversation with messages from database
+      const conversationDetail = await getConversation(conv.id);
+      setMessages(conversationDetail.messages);
+    } catch (err) {
+      console.error("Failed to load conversation:", err);
+      setError("Failed to load conversation history. Starting fresh.");
+      setMessages([]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Delete a conversation
+  // Delete a conversation from database
+  // (Phase III Spec Compliant: Delete from database API)
   const handleDeleteConversation = async (convId: string) => {
     if (!confirm("Delete this conversation? This cannot be undone.")) {
       return;
     }
 
     try {
-      // Try to delete from OpenAI (may fail silently)
+      // Delete from database via API
       await deleteConversation(convId);
-    } catch {
-      // Ignore errors - just remove from localStorage
-    }
 
-    // Remove from localStorage
-    const updated = removeStoredConversation(convId);
-    setConversations(updated);
+      // Refresh conversations list from database
+      await loadConversations();
 
-    // If we deleted the current conversation, start fresh
-    if (convId === conversationId) {
-      handleNewConversation();
+      // If we deleted the current conversation, start fresh
+      if (convId === conversationId) {
+        handleNewConversation();
+      }
+    } catch (err) {
+      console.error("Failed to delete conversation:", err);
+      setError("Failed to delete conversation. Please try again.");
     }
   };
 
@@ -525,31 +533,13 @@ export default function ChatPage() {
       const response: ChatResponse = await sendChatMessage(text, conversationId);
 
       // Update conversation ID for continuity
-      const isNewConversation = !conversationId;
-
-      if (isNewConversation || conversationId !== response.conversation_id) {
+      // (Phase III Spec Compliant: Conversation is already saved in database by backend)
+      if (!conversationId || conversationId !== response.conversation_id) {
         setConversationId(response.conversation_id);
-
-        // Save to localStorage with title from first message
-        const conv: StoredConversation = {
-          id: response.conversation_id,
-          title: text.slice(0, 50) + (text.length > 50 ? "..." : ""),
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        const updated = saveConversation(conv);
-        setConversations(updated);
-      } else {
-        // Update existing conversation's timestamp
-        const conv = conversations.find((c) => c.id === conversationId);
-        if (conv) {
-          const updated = saveConversation({
-            ...conv,
-            updatedAt: new Date().toISOString(),
-          });
-          setConversations(updated);
-        }
       }
+
+      // Refresh conversations list from database to show new/updated conversation
+      await loadConversations();
 
       // Add assistant response
       setMessages((prev) => [...prev, response.message]);
@@ -645,7 +635,12 @@ export default function ChatPage() {
 
           {/* Conversations List */}
           <div className="flex-1 overflow-y-auto p-2">
-            {conversations.length === 0 ? (
+            {loadingConversations ? (
+              <div className="text-center py-8 px-4">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                <p className="text-sm text-slate-500">Loading conversations...</p>
+              </div>
+            ) : conversations.length === 0 ? (
               <div className="text-center py-8 px-4">
                 <svg
                   className="w-12 h-12 mx-auto text-slate-300 mb-3"
@@ -819,10 +814,10 @@ export default function ChatPage() {
                   ))}
                 </div>
 
-                {/* Info about conversation continuity */}
+                {/* Info about conversation continuity - Database-backed */}
                 {conversationId && (
                   <p className="text-xs text-slate-400 mt-6">
-                    Continuing conversation... The assistant remembers your previous messages.
+                    Continuing conversation... Your chat history is saved and will persist.
                   </p>
                 )}
               </div>
@@ -874,84 +869,63 @@ export default function ChatPage() {
             </div>
           )}
 
-          {/* Input Area */}
-          <div className="bg-white border-t border-slate-200 px-4 py-4">
-            <div className="flex items-end gap-2">
-              <div className="flex-1 relative">
+          {/* Input Area - Enhanced ChatGPT style */}
+          <div className="bg-white border-t border-slate-200 p-4">
+            <div className="max-w-3xl mx-auto">
+              <div className="relative flex items-end gap-3 bg-slate-50 rounded-2xl border border-slate-200 p-2 focus-within:border-blue-300 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                 <textarea
                   ref={inputRef}
                   value={inputValue}
                   onChange={handleInputChange}
                   onKeyDown={handleKeyDown}
-                  placeholder="Type a message..."
+                  placeholder="Message TaskFlow AI..."
                   rows={1}
                   disabled={isSending}
                   className="
-                    w-full px-4 py-3 pr-12
-                    bg-slate-50 border border-slate-200 rounded-xl
+                    flex-1 px-3 py-2
+                    bg-transparent
                     text-slate-800 placeholder:text-slate-400
-                    focus:outline-none focus:ring-2 focus:ring-blue-300 focus:border-transparent
+                    focus:outline-none
                     disabled:opacity-50 disabled:cursor-not-allowed
-                    resize-none transition-all
+                    resize-none text-[15px] leading-relaxed
                   "
-                  style={{ minHeight: "48px", maxHeight: "150px" }}
+                  style={{ minHeight: "44px", maxHeight: "150px" }}
                 />
+
+                <button
+                  onClick={() => handleSendMessage()}
+                  disabled={!inputValue.trim() || isSending}
+                  className="
+                    p-2.5 rounded-xl
+                    bg-gradient-to-r from-blue-500 to-blue-600
+                    text-white
+                    hover:from-blue-600 hover:to-blue-700
+                    focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2
+                    disabled:opacity-40 disabled:cursor-not-allowed disabled:from-slate-300 disabled:to-slate-400
+                    transition-all duration-200
+                    flex-shrink-0
+                  "
+                  aria-label="Send message"
+                >
+                  {isSending ? (
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                  )}
+                </button>
               </div>
 
-              <button
-                onClick={() => handleSendMessage()}
-                disabled={!inputValue.trim() || isSending}
-                className="
-                  p-3 rounded-xl
-                  bg-gradient-to-r from-blue-500 to-blue-600
-                  text-white shadow-lg shadow-blue-500/25
-                  hover:from-blue-600 hover:to-blue-700
-                  focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2
-                  disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
-                  transition-all duration-200
-                "
-              >
-                {isSending ? (
-                  <svg
-                    className="w-5 h-5 animate-spin"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    />
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    />
-                  </svg>
-                ) : (
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                    />
-                  </svg>
-                )}
-              </button>
+              <p className="text-xs text-slate-400 mt-2 text-center">
+                <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">Enter</kbd> to send
+                <span className="mx-2">·</span>
+                <kbd className="px-1.5 py-0.5 bg-slate-100 rounded text-slate-500 font-mono text-[10px]">Shift + Enter</kbd> for new line
+              </p>
             </div>
-
-            <p className="text-xs text-slate-400 mt-2 text-center">
-              Press Enter to send, Shift+Enter for new line
-            </p>
           </div>
         </div>
       </div>
