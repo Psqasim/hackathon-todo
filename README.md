@@ -463,6 +463,11 @@ hackathon-todo/
 │   │   ├── task_manager.py       # Business logic
 │   │   ├── storage_handler.py    # Data operations
 │   │   └── ui_controller.py      # Console UI (Phase I)
+│   ├── mcp_server/               # MCP server (Phase III)
+│   │   ├── server.py             # MCP server entry
+│   │   ├── agent.py              # TaskAgent with OpenAI
+│   │   ├── tools.py              # 8 MCP tools
+│   │   └── backend_client.py     # HTTP client for FastAPI
 │   ├── backends/                 # Storage backends
 │   │   ├── memory.py             # InMemoryBackend (Phase I)
 │   │   └── postgres.py           # PostgresBackend (Phase II)
@@ -477,8 +482,10 @@ hackathon-todo/
 ├── tests/                        # Test suites
 ├── specs/                        # Feature specifications
 ├── docs/                         # Documentation
-│   └── HUGGINGFACE_DEPLOYMENT.md # HF Spaces deployment guide
-├── Dockerfile                    # Docker configuration for HF Spaces
+│   ├── DEPLOYMENT.md             # Complete deployment guide
+│   ├── HUGGINGFACE_DEPLOYMENT.md # HF Spaces specific guide
+│   └── PHASE-*-TESTING-GUIDE.md  # Testing guides
+├── Dockerfile                    # Docker config for HF Spaces
 ├── requirements.txt              # Python dependencies
 └── README.md                     # This file
 ```
