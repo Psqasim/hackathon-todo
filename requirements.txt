@@ -1,0 +1,34 @@
+# TaskFlow Backend Dependencies
+# Generated from pyproject.toml for Hugging Face Spaces deployment
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# Database & ORM
+sqlmodel>=0.0.14
+psycopg2-binary>=2.9.9
+
+# Authentication & Security
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.6
+bcrypt>=4.0.0
+passlib
+
+# Data Validation & Settings
+pydantic[email]>=2.5
+pydantic-settings>=2.0
+
+# HTTP Client & OAuth
+httpx>=0.27.0
+
+# AI & MCP Integration (Phase III)
+fastmcp>=2.14.1
+openai>=2.14.0
+openai-agents>=0.6.4
+dateparser>=1.2.2
+
+# Utilities
+python-dotenv>=1.0.0
+structlog>=24.0
+rich>=13.0

@@ -1,3 +1,14 @@
+---
+title: TaskFlow Backend API
+emoji: 📝
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+---
+
 <p align="center">
   <img src="frontend/public/mainpage.png" alt="TaskFlow Landing Page" width="100%" />
 </p>
@@ -51,8 +62,10 @@
 | Service | URL |
 |---------|-----|
 | **Web App** | https://hackathon-todo-orcin.vercel.app |
-| **Backend API** | https://web-production-3e6df.up.railway.app |
-| **API Docs** | https://web-production-3e6df.up.railway.app/docs |
+| **Backend API** | https://psqasim-taskflow-backend.hf.space |
+| **API Docs** | https://psqasim-taskflow-backend.hf.space/docs |
+
+> **Note**: Backend migrated from Railway to Hugging Face Spaces (free hosting with Docker)
 
 ---
 
@@ -467,8 +480,10 @@ hackathon-todo/
 │   └── lib/                      # API client
 ├── tests/                        # Test suites
 ├── specs/                        # Feature specifications
-├── railway.json                  # Railway deployment config
-├── Procfile                      # Process file for deployment
+├── docs/                         # Documentation
+│   └── HUGGINGFACE_DEPLOYMENT.md # HF Spaces deployment guide
+├── Dockerfile                    # Docker configuration for HF Spaces
+├── requirements.txt              # Python dependencies
 └── README.md                     # This file
 ```
 
