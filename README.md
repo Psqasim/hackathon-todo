@@ -9,10 +9,6 @@ pinned: false
 license: mit
 ---
 
-<p align="center">
-  <img src="frontend/public/mainpage.png" alt="TaskFlow Landing Page" width="100%" />
-</p>
-
 <h1 align="center">TaskFlow</h1>
 
 <p align="center">
