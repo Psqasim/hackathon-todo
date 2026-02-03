@@ -22,10 +22,10 @@ def get_mcp_backend_url() -> str:
     """Get the backend URL for MCP server to call.
 
     Priority:
-    1. MCP_BACKEND_URL environment variable
-    2. BACKEND_URL environment variable
-    3. Railway auto-detection (if running on Railway)
-    4. Default to localhost
+    1. MCP_BACKEND_URL environment variable (explicit override)
+    2. BACKEND_URL environment variable (if set)
+    3. Default to localhost:7860 (Hugging Face Spaces port)
+       - For local dev, set MCP_BACKEND_URL=http://localhost:8000
     """
     # Check explicit MCP_BACKEND_URL first
     mcp_url = os.getenv("MCP_BACKEND_URL")
@@ -35,19 +35,19 @@ def get_mcp_backend_url() -> str:
     # Check BACKEND_URL (used by the main app)
     backend_url = os.getenv("BACKEND_URL")
     if backend_url:
+        # If BACKEND_URL is external (https), use localhost for internal calls
+        if backend_url.startswith("https://"):
+            return "http://localhost:7860"
         return backend_url
 
-    # Auto-detect Railway environment
-    railway_public_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
-    if railway_public_domain:
-        return f"https://{railway_public_domain}"
-
-    # Default to localhost for development
-    return "http://localhost:8000"
+    # Default to port 7860 (Hugging Face Spaces / container internal port)
+    # For local dev, set MCP_BACKEND_URL=http://localhost:8000 in .env
+    return "http://localhost:7860"
 
 
 # Backend URL configuration (computed once at module load)
 MCP_BACKEND_URL = get_mcp_backend_url()
+print(f"[MCP Backend Client] Using backend URL: {MCP_BACKEND_URL}", flush=True)
 
 # HTTP client timeout settings
 TIMEOUT_SECONDS = 30.0
