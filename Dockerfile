@@ -12,18 +12,18 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install UV package manager
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-ENV PATH="/root/.local/bin:$PATH"
-
 # Copy dependency files
-COPY pyproject.toml uv.lock* ./
+COPY requirements.txt ./
 
-# Install Python dependencies using UV
-RUN uv sync --frozen --no-dev
+# Install Python dependencies using pip
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend source code
 COPY src/ ./src/
+
+# Copy startup script
+COPY start-services.sh ./
+RUN chmod +x start-services.sh
 
 # Copy environment configuration
 COPY .env.example .env
@@ -38,13 +38,6 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:7860/health || exit 1
 
-# Start both services using a shell script
-# FastAPI on internal port 8000, MCP server on 8001
-# Nginx/proxy forwards external port 7860 to internal 8000
-CMD ["sh", "-c", "\
-    uv run python -m src.mcp_server.server & \
-    uv run uvicorn src.interfaces.api:app --host 0.0.0.0 --port 7860 --workers 1 \
-    "]
-
-# Alternative using exec form (recommended for production)
-# CMD ["sh", "-c", "uv run python -m src.mcp_server.server & exec uv run uvicorn src.interfaces.api:app --host 0.0.0.0 --port 7860 --workers 1"]
+# Start both services with proper orchestration
+# Startup script ensures FastAPI is ready before starting MCP server
+CMD ["./start-services.sh"]
