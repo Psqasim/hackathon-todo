@@ -1,0 +1,137 @@
+openapi: 3.0.0
+info:
+  title: Backend Health Check API
+  version: 1.0.0
+  description: Health check endpoint for Kubernetes liveness, readiness, and startup probes
+
+servers:
+  - url: http://localhost:7860
+    description: Local development
+  - url: http://backend-service:8000
+    description: Kubernetes cluster (internal)
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: |
+        Returns service health status for Kubernetes probes.
+
+        **Usage**:
+        - Startup Probe: Waits for first 200 response (max 150s)
+        - Liveness Probe: Checks every 10s, restarts container after 3 failures
+        - Readiness Probe: Checks every 5s, removes from service endpoints after 3 failures
+
+        **Health Criteria**:
+        - FastAPI application running
+        - MCP server responsive (optional check)
+        - No dependency on database (keep fast)
+
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy and ready to accept requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - healthy
+                    description: Health status indicator
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: ISO 8601 timestamp of health check
+                    example: "2026-02-03T10:30:00Z"
+                  version:
+                    type: string
+                    description: Application version (optional)
+                    example: "1.0.0"
+                  uptime:
+                    type: number
+                    description: Uptime in seconds (optional)
+                    example: 3600
+              examples:
+                minimal:
+                  summary: Minimal response
+                  value:
+                    status: healthy
+                detailed:
+                  summary: Detailed response
+                  value:
+                    status: healthy
+                    timestamp: "2026-02-03T10:30:00Z"
+                    version: "1.0.0"
+                    uptime: 3600
+        '503':
+          description: Service is unhealthy or not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - unhealthy
+                  error:
+                    type: string
+                    description: Error message describing the issue
+                  timestamp:
+                    type: string
+                    format: date-time
+              examples:
+                database_error:
+                  summary: Database connection error
+                  value:
+                    status: unhealthy
+                    error: "Database connection failed"
+                    timestamp: "2026-02-03T10:30:00Z"
+                mcp_error:
+                  summary: MCP server not responding
+                  value:
+                    status: unhealthy
+                    error: "MCP server not responding"
+                    timestamp: "2026-02-03T10:30:00Z"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - unhealthy
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        uptime:
+          type: number
+        error:
+          type: string
+
+security: []  # No authentication required for health checks
+
+tags:
+  - name: Health
+    description: Health check endpoints for monitoring and orchestration
+
+externalDocs:
+  description: Kubernetes Health Probes Documentation
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

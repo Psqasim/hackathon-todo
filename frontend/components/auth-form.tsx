@@ -5,12 +5,14 @@
  *
  * Reusable form for signup and signin with validation.
  * Includes OAuth login options for Google and GitHub.
+ * Phase IV: Updated to use API proxy for Kubernetes deployment.
  */
 
 import { useState } from "react";
 import { z } from "zod";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Phase IV: Use API proxy for Kubernetes compatibility
+const API_URL = "/api/proxy";
 
 // OAuth Icons
 function GoogleIcon() {
@@ -220,7 +222,7 @@ export function AuthForm({ mode, onSubmit, error: externalError }: AuthFormProps
         <button
           type="button"
           onClick={() => {
-            window.location.href = `${API_URL}/api/auth/google`;
+            window.location.href = `${API_URL}/auth/google`;
           }}
           disabled={isSubmitting}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -231,7 +233,7 @@ export function AuthForm({ mode, onSubmit, error: externalError }: AuthFormProps
         <button
           type="button"
           onClick={() => {
-            window.location.href = `${API_URL}/api/auth/github`;
+            window.location.href = `${API_URL}/auth/github`;
           }}
           disabled={isSubmitting}
           className="flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"

@@ -1,0 +1,138 @@
+# Default values for TaskFlow Helm chart
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Namespace configuration
+namespace:
+  name: taskflow
+  labels:
+    app: taskflow
+    phase: "4"
+
+# Backend configuration
+backend:
+  replicaCount: 1
+  image:
+    repository: taskflow-backend
+    tag: latest
+    pullPolicy: Never  # Use local image for development
+
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 7860
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "500Mi"
+      cpu: "500m"
+
+  # Health probes
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 7860
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 7860
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  startupProbe:
+    httpGet:
+      path: /health
+      port: 7860
+    periodSeconds: 10
+    failureThreshold: 60  # 600 seconds max startup time
+
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+# Frontend configuration
+frontend:
+  replicaCount: 1
+  image:
+    repository: taskflow-frontend
+    tag: latest
+    pullPolicy: Never  # Use local image for development
+
+  service:
+    type: LoadBalancer
+    port: 80
+    targetPort: 3000
+
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+  # Health probes
+  livenessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 5
+
+  readinessProbe:
+    httpGet:
+      path: /
+      port: 3000
+    initialDelaySeconds: 10
+    periodSeconds: 5
+    timeoutSeconds: 5
+
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+
+# Configuration values (non-sensitive)
+config:
+  jwtAlgorithm: "HS256"
+  jwtExpirationDays: "7"
+  backendUrl: "http://backend-service:8000"
+  nextPublicApiUrl: "http://backend-service:8000"
+  mcpBackendUrl: "http://localhost:8001"
+  logLevel: "info"
+
+# Secrets (sensitive values - provide via --set or values file)
+# These should be base64 encoded when applied
+secrets:
+  # Database
+  databaseUrl: ""  # Override with actual value
+
+  # JWT
+  jwtSecretKey: ""  # Override with actual value
+
+  # OpenAI
+  openaiApiKey: ""  # Override with actual value
+
+  # Google OAuth
+  googleClientId: ""  # Override with actual value
+  googleClientSecret: ""  # Override with actual value
+
+  # GitHub OAuth
+  githubClientId: ""  # Override with actual value
+  githubClientSecret: ""  # Override with actual value
+
+# Image pull secrets (if using private registry)
+imagePullSecrets: []
