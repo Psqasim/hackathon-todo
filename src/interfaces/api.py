@@ -246,7 +246,7 @@ async def google_oauth_start() -> RedirectResponse:
 
     params = {
         "client_id": settings.google_client_id,
-        "redirect_uri": f"{settings.backend_url.rstrip('/')}/api/auth/google/callback",
+        "redirect_uri": f"{settings.backend_url.rstrip('/')}/auth/google/callback",
         "response_type": "code",
         "scope": "openid email profile",
         "state": state,
@@ -283,7 +283,7 @@ async def google_oauth_callback(code: str, state: str) -> RedirectResponse:
                     "client_secret": settings.google_client_secret,
                     "code": code,
                     "grant_type": "authorization_code",
-                    "redirect_uri": f"{settings.backend_url.rstrip('/')}/api/auth/google/callback",
+                    "redirect_uri": f"{settings.backend_url.rstrip('/')}/auth/google/callback",
                 },
             )
 
@@ -365,7 +365,7 @@ async def github_oauth_start() -> RedirectResponse:
 
     params = {
         "client_id": settings.github_client_id,
-        "redirect_uri": f"{settings.backend_url.rstrip('/')}/api/auth/github/callback",
+        "redirect_uri": f"{settings.backend_url.rstrip('/')}/auth/github/callback",
         "scope": "read:user user:email",
         "state": state,
     }

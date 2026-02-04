@@ -3,11 +3,14 @@
  *
  * Phase II: Typed API client with JWT attachment for task operations.
  * Phase II Enhancement: Added priority, due_date, tags, recurring fields.
+ * Phase IV: Updated to use API proxy for Kubernetes deployment.
  */
 
 import { getToken, clearAuth } from "./auth-client";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Phase IV: Use API proxy for Kubernetes compatibility
+// Browser calls /api/proxy/*, Next.js server proxies to backend-service:8000
+const API_URL = "/api/proxy";
 
 // Types
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -151,7 +154,7 @@ export async function getTasks(
   }
 
   const queryString = params.toString();
-  const endpoint = `/api/users/${userId}/tasks${queryString ? `?${queryString}` : ""}`;
+  const endpoint = `/users/${userId}/tasks${queryString ? `?${queryString}` : ""}`;
 
   return apiRequest<TaskListResponse>(endpoint);
 }
@@ -163,7 +166,7 @@ export async function getTask(
   userId: string,
   taskId: string
 ): Promise<SingleTaskResponse> {
-  return apiRequest<SingleTaskResponse>(`/api/users/${userId}/tasks/${taskId}`);
+  return apiRequest<SingleTaskResponse>(`/users/${userId}/tasks/${taskId}`);
 }
 
 /**
@@ -173,7 +176,7 @@ export async function createTask(
   userId: string,
   data: CreateTaskData
 ): Promise<SingleTaskResponse> {
-  return apiRequest<SingleTaskResponse>(`/api/users/${userId}/tasks`, {
+  return apiRequest<SingleTaskResponse>(`/users/${userId}/tasks`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -187,7 +190,7 @@ export async function updateTask(
   taskId: string,
   data: UpdateTaskData
 ): Promise<SingleTaskResponse> {
-  return apiRequest<SingleTaskResponse>(`/api/users/${userId}/tasks/${taskId}`, {
+  return apiRequest<SingleTaskResponse>(`/users/${userId}/tasks/${taskId}`, {
     method: "PUT",
     body: JSON.stringify(data),
   });
@@ -200,7 +203,7 @@ export async function deleteTask(
   userId: string,
   taskId: string
 ): Promise<DeleteTaskResponse> {
-  return apiRequest<DeleteTaskResponse>(`/api/users/${userId}/tasks/${taskId}`, {
+  return apiRequest<DeleteTaskResponse>(`/users/${userId}/tasks/${taskId}`, {
     method: "DELETE",
   });
 }
@@ -214,7 +217,7 @@ export async function completeTask(
   completed: boolean
 ): Promise<SingleTaskResponse> {
   return apiRequest<SingleTaskResponse>(
-    `/api/users/${userId}/tasks/${taskId}/complete`,
+    `/users/${userId}/tasks/${taskId}/complete`,
     {
       method: "PATCH",
       body: JSON.stringify({ completed }),
@@ -290,7 +293,7 @@ export async function sendChatMessage(
     body.conversation_id = conversationId;
   }
 
-  return apiRequest<ChatResponse>("/api/chat", {
+  return apiRequest<ChatResponse>("/chat", {
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -304,7 +307,7 @@ export async function getConversations(
   offset: number = 0
 ): Promise<ConversationListResponse> {
   return apiRequest<ConversationListResponse>(
-    `/api/conversations?limit=${limit}&offset=${offset}`
+    `/conversations?limit=${limit}&offset=${offset}`
   );
 }
 
@@ -314,7 +317,7 @@ export async function getConversations(
 export async function getConversation(
   conversationId: string
 ): Promise<ConversationDetail> {
-  return apiRequest<ConversationDetail>(`/api/conversations/${conversationId}`);
+  return apiRequest<ConversationDetail>(`/conversations/${conversationId}`);
 }
 
 /**
@@ -323,7 +326,7 @@ export async function getConversation(
 export async function deleteConversation(
   conversationId: string
 ): Promise<DeleteResponse> {
-  return apiRequest<DeleteResponse>(`/api/conversations/${conversationId}`, {
+  return apiRequest<DeleteResponse>(`/conversations/${conversationId}`, {
     method: "DELETE",
   });
 }

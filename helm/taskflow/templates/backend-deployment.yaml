@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "taskflow.backend.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.backend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "taskflow.backend.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "taskflow.backend.selectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.backend.securityContext | nindent 8 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: backend
+        image: "{{ .Values.backend.image.repository }}:{{ .Values.backend.image.tag }}"
+        imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+        ports:
+        - containerPort: 7860
+          name: fastapi
+        - containerPort: 8001
+          name: mcp
+        envFrom:
+        - configMapRef:
+            name: taskflow-config
+        - secretRef:
+            name: taskflow-secrets
+        resources:
+          {{- toYaml .Values.backend.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.backend.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.backend.readinessProbe | nindent 10 }}
+        startupProbe:
+          {{- toYaml .Values.backend.startupProbe | nindent 10 }}

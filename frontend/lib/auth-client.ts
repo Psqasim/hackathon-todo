@@ -3,6 +3,7 @@
  *
  * Phase II: Client-side authentication helpers for Next.js frontend.
  * Communicates with FastAPI backend for auth operations.
+ * Phase IV: Updated to use API proxy for Kubernetes deployment.
  */
 
 // Types
@@ -35,7 +36,8 @@ export interface AuthError {
 }
 
 // Constants
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// Phase IV: Use API proxy for Kubernetes compatibility
+const API_URL = "/api/proxy";
 const TOKEN_KEY = "todo_auth_token";
 const USER_KEY = "todo_auth_user";
 
@@ -128,7 +130,7 @@ export function isAuthenticated(): boolean {
  * Sign up a new user
  */
 export async function signup(data: SignupData): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/api/auth/signup`, {
+  const response = await fetch(`${API_URL}/auth/signup`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -150,7 +152,7 @@ export async function signup(data: SignupData): Promise<AuthResponse> {
  * Sign in an existing user
  */
 export async function signin(data: SigninData): Promise<AuthResponse> {
-  const response = await fetch(`${API_URL}/api/auth/signin`, {
+  const response = await fetch(`${API_URL}/auth/signin`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -178,7 +180,7 @@ export async function signout(): Promise<void> {
 
   // Notify backend (non-blocking, fire-and-forget)
   try {
-    fetch(`${API_URL}/api/auth/signout`, {
+    fetch(`${API_URL}/auth/signout`, {
       method: "POST",
     }).catch(() => {
       // Ignore errors - user is already logged out locally
@@ -198,7 +200,7 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/auth/me`, {
+    const response = await fetch(`${API_URL}/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },

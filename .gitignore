@@ -73,3 +73,6 @@ logs/
 *.temp
 tmp/
 temp/
+
+# Kubernetes secrets (generated from .env, never commit)
+k8s/secrets.yaml

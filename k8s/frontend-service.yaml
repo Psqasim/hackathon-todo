@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend-service
+  namespace: taskflow
+  labels:
+    app: taskflow-frontend
+spec:
+  type: LoadBalancer  # External access
+  selector:
+    app: taskflow-frontend
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80          # External port (public)
+    targetPort: 3000  # Container port
