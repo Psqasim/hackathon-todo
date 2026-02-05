@@ -59,6 +59,11 @@ export interface SingleTaskResponse {
   task: Task;
 }
 
+export interface CompleteTaskResponse {
+  completed_task: Task;
+  next_occurrence: Task | null;
+}
+
 export interface DeleteTaskResponse {
   deleted: boolean;
   task_id: string;
@@ -210,13 +215,14 @@ export async function deleteTask(
 
 /**
  * Toggle task completion
+ * Returns completed task and next occurrence (if recurring)
  */
 export async function completeTask(
   userId: string,
   taskId: string,
   completed: boolean
-): Promise<SingleTaskResponse> {
-  return apiRequest<SingleTaskResponse>(
+): Promise<CompleteTaskResponse> {
+  return apiRequest<CompleteTaskResponse>(
     `/users/${userId}/tasks/${taskId}/complete`,
     {
       method: "PATCH",

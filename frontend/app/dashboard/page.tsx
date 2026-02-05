@@ -16,6 +16,7 @@ import { TaskList } from "@/components/task-list";
 import { TaskForm } from "@/components/task-form";
 import { Loading } from "@/components/loading";
 import { FloatingChatWidget } from "@/components/floating-chat-widget";
+import { SortDropdown, type SortOption, type SortOrder } from "@/components/sort-dropdown";
 import {
   isAuthenticated,
   getStoredUser,
@@ -31,6 +32,7 @@ import {
   type Task,
   type CreateTaskData,
   type UpdateTaskData,
+  type TaskFilters,
 } from "@/lib/api-client";
 
 type FilterStatus = "all" | "pending" | "completed";
@@ -133,6 +135,10 @@ export default function DashboardPage() {
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
+  const [sortBy, setSortBy] = useState<SortOption>("created_at");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [toastMessage, setToastMessage] = useState<string>("");
+  const [showToast, setShowToast] = useState(false);
 
   // Filter tasks based on search query
   const filteredTasks = useMemo(() => {
@@ -188,7 +194,11 @@ export default function DashboardPage() {
 
     try {
       const statusFilter = filter === "all" ? undefined : filter;
-      const response = await getTasks(user.id, statusFilter);
+      const filters: TaskFilters = {
+        sort: sortBy,
+        order: sortOrder,
+      };
+      const response = await getTasks(user.id, statusFilter, filters);
       setTasks(response.tasks);
     } catch (err) {
       if (err instanceof Error) {
@@ -199,11 +209,17 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, filter]);
+  }, [user, filter, sortBy, sortOrder]);
 
   useEffect(() => {
     loadTasks();
   }, [loadTasks]);
+
+  // Handle sort changes from SortDropdown
+  const handleSortChange = useCallback((newSortBy: SortOption, newSortOrder: SortOrder) => {
+    setSortBy(newSortBy);
+    setSortOrder(newSortOrder);
+  }, []);
 
   // Task handlers
   const handleCreateTask = async (data: CreateTaskData | UpdateTaskData) => {
@@ -240,9 +256,35 @@ export default function DashboardPage() {
 
     try {
       const response = await completeTask(user.id, taskId, completed);
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? response.task : t))
-      );
+
+      // Update tasks list with completed task and add next occurrence
+      setTasks((prev) => {
+        const updated = prev.map((t) => (t.id === taskId ? response.completed_task : t));
+
+        // If there's a next occurrence, add it to the list
+        if (response.next_occurrence) {
+          return [response.next_occurrence, ...updated];
+        }
+
+        return updated;
+      });
+
+      // Show toast notification if next occurrence was created
+      if (completed && response.next_occurrence) {
+        const nextDueDate = response.next_occurrence.due_date
+          ? new Date(response.next_occurrence.due_date).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric"
+            })
+          : "soon";
+
+        setToastMessage(`✅ Task completed! Next occurrence created for ${nextDueDate}`);
+        setShowToast(true);
+
+        // Auto-hide toast after 5 seconds
+        setTimeout(() => setShowToast(false), 5000);
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -416,8 +458,8 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* Filter Tabs */}
-        <div className="mb-6">
+        {/* Filter Tabs and Sort Controls */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <nav
             className="inline-flex gap-1 p-1.5 bg-slate-100/80 backdrop-blur-sm rounded-2xl shadow-inner"
             aria-label="Task filter tabs"
@@ -476,6 +518,9 @@ export default function DashboardPage() {
               );
             })}
           </nav>
+
+          {/* Sort Dropdown */}
+          <SortDropdown onSortChange={handleSortChange} />
         </div>
 
         {/* Error Message */}
@@ -569,6 +614,26 @@ export default function DashboardPage() {
 
       {/* Floating Chat Widget */}
       <FloatingChatWidget userName={user.name} />
+
+      {/* Toast Notification for Recurring Task */}
+      {showToast && (
+        <div className="fixed bottom-8 right-8 z-50 animate-slide-up">
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 max-w-md">
+            <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm font-medium">{toastMessage}</p>
+            <button
+              onClick={() => setShowToast(false)}
+              className="ml-2 text-white/80 hover:text-white transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

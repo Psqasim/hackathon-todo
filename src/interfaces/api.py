@@ -2,12 +2,15 @@
 FastAPI REST API interface.
 
 Phase II: Web API for multi-user task management with OAuth support.
+Phase V: Added event publishing for task lifecycle events.
 """
 
 from __future__ import annotations
 
+import asyncio
 import secrets
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
 from typing import Any, AsyncGenerator
 from urllib.parse import urlencode
 
@@ -33,6 +36,7 @@ from src.models import UserDB
 from src.models.requests import (
     AuthResponse,
     CompleteTaskRequest,
+    CompleteTaskResponse,
     CreateTaskRequest,
     DeleteTaskResponse,
     MessageResponse,
@@ -529,18 +533,18 @@ async def list_tasks(
     current_user: CurrentUser,
     status_filter: str | None = Query(default=None, alias="status"),
     priority_filter: str | None = Query(default=None, alias="priority"),
-    sort_by: str | None = Query(default="created_at", alias="sort"),
-    sort_order: str | None = Query(default="desc", alias="order"),
+    sort_by: str = Query(default="created_at", enum=["due_date", "priority", "created_at", "title"]),
+    sort_order: str = Query(default="desc", enum=["asc", "desc"]),
 ) -> TaskListResponse:
     """
-    Get all tasks for a user.
+    Get all tasks for a user with sorting support.
 
     Args:
         user_id: User ID from path
         status: Optional filter by status (pending, completed)
         priority: Optional filter by priority (low, medium, high, urgent)
-        sort: Sort field (created_at, due_date, priority, title)
-        order: Sort order (asc, desc)
+        sort_by: Sort field - due_date, priority, created_at, or title (default: created_at)
+        sort_order: Sort order - asc or desc (default: desc)
 
     Raises:
         403 Forbidden: If user_id doesn't match authenticated user
@@ -555,6 +559,8 @@ async def list_tasks(
     engine = get_engine()
 
     with Session(engine) as session:
+        from sqlalchemy import case
+
         query = select(TaskDB).where(TaskDB.user_id == user_id)
 
         if status_filter:
@@ -563,12 +569,35 @@ async def list_tasks(
         if priority_filter:
             query = query.where(TaskDB.priority == priority_filter)
 
-        # Apply sorting
-        sort_column = getattr(TaskDB, sort_by, TaskDB.created_at)
-        if sort_order == "asc":
-            query = query.order_by(sort_column.asc())
+        # Apply sorting with special handling for priority and due_date
+        if sort_by == "priority":
+            # Priority order: urgent > high > medium > low
+            priority_order = case(
+                (TaskDB.priority == "urgent", 4),
+                (TaskDB.priority == "high", 3),
+                (TaskDB.priority == "medium", 2),
+                (TaskDB.priority == "low", 1),
+                else_=0
+            )
+            if sort_order == "asc":
+                query = query.order_by(priority_order.asc())
+            else:
+                query = query.order_by(priority_order.desc())
+        elif sort_by == "due_date":
+            # Handle NULL values in due_date
+            if sort_order == "asc":
+                # nulls last for ascending
+                query = query.order_by(TaskDB.due_date.asc().nullslast())
+            else:
+                # nulls first for descending
+                query = query.order_by(TaskDB.due_date.desc().nullsfirst())
         else:
-            query = query.order_by(sort_column.desc())
+            # Standard sorting for created_at and title
+            sort_column = getattr(TaskDB, sort_by, TaskDB.created_at)
+            if sort_order == "asc":
+                query = query.order_by(sort_column.asc())
+            else:
+                query = query.order_by(sort_column.desc())
 
         tasks_db = session.exec(query).all()
 
@@ -607,6 +636,8 @@ async def create_task_endpoint(
     """
     Create a new task.
 
+    Publishes task.created event and schedules reminder if due_date is set.
+
     Raises:
         403 Forbidden: If user_id doesn't match authenticated user
     """
@@ -618,6 +649,7 @@ async def create_task_endpoint(
         )
 
     engine = get_engine()
+    from src.events import get_publisher
 
     with Session(engine) as session:
         task_db = TaskDB(
@@ -635,6 +667,37 @@ async def create_task_endpoint(
         session.refresh(task_db)
 
         logger.info("task_created", task_id=task_db.id, user_id=user_id)
+
+        # Publish task.created event (non-blocking)
+        publisher = get_publisher()
+        task_data = {
+            "id": task_db.id,
+            "title": task_db.title,
+            "description": task_db.description,
+            "status": task_db.status,
+            "priority": task_db.priority,
+            "due_date": task_db.due_date.isoformat() if task_db.due_date else None,
+            "tags": task_db.tags or [],
+            "is_recurring": task_db.is_recurring,
+            "recurrence_pattern": task_db.recurrence_pattern,
+        }
+        asyncio.create_task(
+            publisher.publish_task_event("created", task_db.id, user_id, task_data)
+        )
+
+        # Schedule reminder if due_date is set (1 hour before)
+        if task_db.due_date:
+            remind_at = task_db.due_date - timedelta(hours=1)
+            if remind_at > datetime.now(UTC):
+                asyncio.create_task(
+                    publisher.publish_reminder_event(
+                        task_db.id,
+                        user_id,
+                        task_db.title,
+                        task_db.due_date,
+                        remind_at,
+                    )
+                )
 
         return SingleTaskResponse(
             task=TaskResponse(
@@ -722,6 +785,8 @@ async def update_task_endpoint(
     """
     Update a task.
 
+    Publishes task.updated event and reschedules reminder if due_date changed.
+
     Raises:
         403 Forbidden: If user_id doesn't match authenticated user
         404 Not Found: If task doesn't exist
@@ -733,6 +798,7 @@ async def update_task_endpoint(
         )
 
     engine = get_engine()
+    from src.events import get_publisher
 
     with Session(engine) as session:
         task_db = session.exec(
@@ -745,6 +811,10 @@ async def update_task_endpoint(
                 detail=f"Task not found: {task_id}",
             )
 
+        # Track if due_date changed for reminder rescheduling
+        old_due_date = task_db.due_date
+        due_date_changed = False
+
         # Update fields
         if request.title is not None:
             task_db.title = request.title
@@ -754,6 +824,7 @@ async def update_task_endpoint(
             task_db.priority = request.priority
         if request.due_date is not None:
             task_db.due_date = request.due_date
+            due_date_changed = old_due_date != request.due_date
         if request.tags is not None:
             task_db.tags = request.tags
         if request.is_recurring is not None:
@@ -761,7 +832,6 @@ async def update_task_endpoint(
         if request.recurrence_pattern is not None:
             task_db.recurrence_pattern = request.recurrence_pattern
 
-        from datetime import UTC, datetime
         task_db.updated_at = datetime.now(UTC)
 
         session.add(task_db)
@@ -769,6 +839,37 @@ async def update_task_endpoint(
         session.refresh(task_db)
 
         logger.info("task_updated", task_id=task_id, user_id=user_id)
+
+        # Publish task.updated event (non-blocking)
+        publisher = get_publisher()
+        task_data = {
+            "id": task_db.id,
+            "title": task_db.title,
+            "description": task_db.description,
+            "status": task_db.status,
+            "priority": task_db.priority,
+            "due_date": task_db.due_date.isoformat() if task_db.due_date else None,
+            "tags": task_db.tags or [],
+            "is_recurring": task_db.is_recurring,
+            "recurrence_pattern": task_db.recurrence_pattern,
+        }
+        asyncio.create_task(
+            publisher.publish_task_event("updated", task_db.id, user_id, task_data)
+        )
+
+        # Reschedule reminder if due_date changed
+        if due_date_changed and task_db.due_date:
+            remind_at = task_db.due_date - timedelta(hours=1)
+            if remind_at > datetime.now(UTC):
+                asyncio.create_task(
+                    publisher.publish_reminder_event(
+                        task_db.id,
+                        user_id,
+                        task_db.title,
+                        task_db.due_date,
+                        remind_at,
+                    )
+                )
 
         return SingleTaskResponse(
             task=TaskResponse(
@@ -801,6 +902,8 @@ async def delete_task_endpoint(
     """
     Delete a task.
 
+    Publishes task.deleted event.
+
     Raises:
         403 Forbidden: If user_id doesn't match authenticated user
         404 Not Found: If task doesn't exist
@@ -812,6 +915,7 @@ async def delete_task_endpoint(
         )
 
     engine = get_engine()
+    from src.events import get_publisher
 
     with Session(engine) as session:
         task_db = session.exec(
@@ -824,17 +928,36 @@ async def delete_task_endpoint(
                 detail=f"Task not found: {task_id}",
             )
 
+        # Capture task data before deletion
+        task_data = {
+            "id": task_db.id,
+            "title": task_db.title,
+            "description": task_db.description,
+            "status": task_db.status,
+            "priority": task_db.priority,
+            "due_date": task_db.due_date.isoformat() if task_db.due_date else None,
+            "tags": task_db.tags or [],
+            "is_recurring": task_db.is_recurring,
+            "recurrence_pattern": task_db.recurrence_pattern,
+        }
+
         session.delete(task_db)
         session.commit()
 
         logger.info("task_deleted", task_id=task_id, user_id=user_id)
+
+        # Publish task.deleted event (non-blocking)
+        publisher = get_publisher()
+        asyncio.create_task(
+            publisher.publish_task_event("deleted", task_id, user_id, task_data)
+        )
 
         return DeleteTaskResponse(deleted=True, task_id=task_id)
 
 
 @app.patch(
     "/api/users/{user_id}/tasks/{task_id}/complete",
-    response_model=SingleTaskResponse,
+    response_model=CompleteTaskResponse,
     tags=["tasks"],
 )
 async def complete_task_endpoint(
@@ -842,9 +965,11 @@ async def complete_task_endpoint(
     task_id: str,
     request: CompleteTaskRequest,
     current_user: CurrentUser,
-) -> SingleTaskResponse:
+) -> CompleteTaskResponse:
     """
     Toggle task completion status.
+
+    For recurring tasks marked as completed, automatically creates the next occurrence.
 
     Raises:
         403 Forbidden: If user_id doesn't match authenticated user
@@ -869,12 +994,44 @@ async def complete_task_endpoint(
                 detail=f"Task not found: {task_id}",
             )
 
-        from datetime import UTC, datetime
+        from src.utils.recurrence import calculate_next_due_date
+        from src.events import get_publisher
+
         now = datetime.now(UTC)
+        next_task_db = None
 
         if request.completed:
             task_db.status = "completed"
             task_db.completed_at = now
+
+            # Check if task is recurring and should create next occurrence
+            if task_db.is_recurring and task_db.recurrence_pattern and task_db.due_date:
+                # Calculate next due date
+                next_due_date = calculate_next_due_date(task_db.due_date, task_db.recurrence_pattern)
+
+                # Create next occurrence
+                next_task_db = TaskDB(
+                    user_id=user_id,
+                    title=task_db.title,
+                    description=task_db.description,
+                    priority=task_db.priority,
+                    due_date=next_due_date,
+                    tags=task_db.tags,
+                    is_recurring=task_db.is_recurring,
+                    recurrence_pattern=task_db.recurrence_pattern,
+                    status="pending",
+                    created_at=now,
+                    updated_at=now,
+                )
+                session.add(next_task_db)
+
+                logger.info(
+                    "recurring_task_next_occurrence_created",
+                    original_task_id=task_id,
+                    next_task_id=next_task_db.id,
+                    next_due_date=next_due_date.isoformat(),
+                    user_id=user_id,
+                )
         else:
             task_db.status = "pending"
             task_db.completed_at = None
@@ -885,15 +1042,37 @@ async def complete_task_endpoint(
         session.commit()
         session.refresh(task_db)
 
+        if next_task_db:
+            session.refresh(next_task_db)
+
         logger.info(
             "task_completion_toggled",
             task_id=task_id,
             user_id=user_id,
             completed=request.completed,
+            created_next_occurrence=next_task_db is not None,
         )
 
-        return SingleTaskResponse(
-            task=TaskResponse(
+        # Publish task.completed event (non-blocking)
+        if request.completed:
+            publisher = get_publisher()
+            task_data = {
+                "id": task_db.id,
+                "title": task_db.title,
+                "description": task_db.description,
+                "status": task_db.status,
+                "priority": task_db.priority,
+                "due_date": task_db.due_date.isoformat() if task_db.due_date else None,
+                "tags": task_db.tags or [],
+                "is_recurring": task_db.is_recurring,
+                "recurrence_pattern": task_db.recurrence_pattern,
+            }
+            asyncio.create_task(
+                publisher.publish_task_event("completed", task_db.id, user_id, task_data)
+            )
+
+        return CompleteTaskResponse(
+            completed_task=TaskResponse(
                 id=task_db.id,
                 title=task_db.title,
                 description=task_db.description,
@@ -906,7 +1085,21 @@ async def complete_task_endpoint(
                 created_at=task_db.created_at,
                 updated_at=task_db.updated_at,
                 completed_at=task_db.completed_at,
-            )
+            ),
+            next_occurrence=TaskResponse(
+                id=next_task_db.id,
+                title=next_task_db.title,
+                description=next_task_db.description,
+                status=next_task_db.status,
+                priority=next_task_db.priority,
+                due_date=next_task_db.due_date,
+                tags=next_task_db.tags or [],
+                is_recurring=next_task_db.is_recurring,
+                recurrence_pattern=next_task_db.recurrence_pattern,
+                created_at=next_task_db.created_at,
+                updated_at=next_task_db.updated_at,
+                completed_at=next_task_db.completed_at,
+            ) if next_task_db else None
         )
 
 
