@@ -41,10 +41,10 @@
 
 **⚠️ CRITICAL**: Complete this phase before starting Part A, B, or C
 
-- [ ] T007 Create TaskEvent model in src/events/models.py with fields: event_type, task_id, user_id, task_data, timestamp
-- [ ] T008 Create ReminderEvent model in src/events/models.py with fields: task_id, user_id, title, due_at, remind_at
-- [ ] T009 Create base Dapr publisher client in src/events/publisher.py with publish_event() method
-- [ ] T010 Add event models to src/events/__init__.py exports
+- [X] T007 Create TaskEvent model in src/events/models.py with fields: event_type, task_id, user_id, task_data, timestamp
+- [X] T008 Create ReminderEvent model in src/events/models.py with fields: task_id, user_id, title, due_at, remind_at
+- [X] T009 Create base Dapr publisher client in src/events/publisher.py with publish_event() method
+- [X] T010 Add event models to src/events/__init__.py exports
 
 **Checkpoint**: Event models and publisher foundation ready
 
