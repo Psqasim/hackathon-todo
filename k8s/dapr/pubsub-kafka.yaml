@@ -1,0 +1,36 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: taskflow-pubsub
+  namespace: taskflow
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    # Kafka broker address (Strimzi cluster)
+    - name: brokers
+      value: "taskflow-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+
+    # Consumer group for TaskFlow
+    - name: consumerGroup
+      value: "taskflow-group"
+
+    # No authentication required for development
+    - name: authRequired
+      value: "false"
+
+    # Client ID for identification
+    - name: clientID
+      value: "taskflow-client"
+
+    # Consumer configuration
+    - name: consumeRetryEnabled
+      value: "true"
+
+    # Offset management: start from latest messages
+    - name: initialOffset
+      value: "latest"
+
+    # Message delivery guarantee: at-least-once
+    - name: maxMessageBytes
+      value: "1024000"  # 1MB max message size
