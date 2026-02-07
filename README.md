@@ -37,6 +37,15 @@ license: mit
   <img src="https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Kubernetes-1.34+-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes" />
+  <img src="https://img.shields.io/badge/Docker-24.0+-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/Helm-3.20+-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm" />
+  <img src="https://img.shields.io/badge/Oracle_Cloud-OKE-F80000?style=flat-square&logo=oracle&logoColor=white" alt="Oracle Cloud" />
+  <img src="https://img.shields.io/badge/Apache_Kafka-3.8+-231F20?style=flat-square&logo=apache-kafka&logoColor=white" alt="Kafka" />
+  <img src="https://img.shields.io/badge/Dapr-1.16+-0D2192?style=flat-square&logo=dapr&logoColor=white" alt="Dapr" />
+</p>
+
 ---
 
 ## About
