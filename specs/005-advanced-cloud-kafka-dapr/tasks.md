@@ -227,14 +227,14 @@
 
 **Independent Test**: kubectl get nodes shows 2 worker nodes (free tier), cluster ready
 
-- [ ] T079 [US9] Sign up for Oracle Cloud free tier at cloud.oracle.com
-- [ ] T080 [US9] Install OCI CLI: bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
-- [ ] T081 [US9] Configure OCI CLI: oci setup config (enter tenancy OCID, user OCID, region, key pair)
-- [ ] T082 [US9] Create OKE cluster via Console: Kubernetes Clusters → Create Cluster → Quick Create, Shape: VM.Standard.E2.1.Micro (always free), 2 nodes
-- [ ] T083 [US9] Wait for cluster provisioning (10-15 minutes)
-- [ ] T084 [US9] Configure kubectl: oci ce cluster create-kubeconfig --cluster-id <cluster_ocid> --file ~/.kube/config-oke --region <region>
-- [ ] T085 [US9] Set kubectl context: export KUBECONFIG=~/.kube/config-oke or kubectl config use-context <oke-context>
-- [ ] T086 [US9] Verify cluster access: kubectl get nodes shows 2 nodes Ready, kubectl get namespaces shows default, kube-system
+- [X] T079 [US9] Sign up for Oracle Cloud free tier at cloud.oracle.com
+- [X] T080 [US9] Install OCI CLI: bash -c "$(curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh)"
+- [X] T081 [US9] Configure OCI CLI: oci setup config (enter tenancy OCID, user OCID, region, key pair)
+- [X] T082 [US9] Create OKE cluster via Console: Kubernetes Clusters → Create Cluster → Quick Create, Shape: VM.Standard.E2.1.Micro (always free), 2 nodes
+- [X] T083 [US9] Wait for cluster provisioning (10-15 minutes)
+- [X] T084 [US9] Configure kubectl: oci ce cluster create-kubeconfig --cluster-id <cluster_ocid> --file ~/.kube/config-oke --region <region>
+- [X] T085 [US9] Set kubectl context: export KUBECONFIG=~/.kube/config-oke or kubectl config use-context <oke-context>
+- [X] T086 [US9] Verify cluster access: kubectl get nodes shows 2 nodes Ready, kubectl get namespaces shows default, kube-system
 
 **Checkpoint**: Oracle OKE cluster provisioned and kubectl configured
 
@@ -244,14 +244,14 @@
 
 **Independent Test**: kubectl get kafka -n kafka on OKE shows Kafka running, dapr status -k shows Dapr components
 
-- [ ] T087 [US9] Deploy Strimzi operator to OKE: kubectl apply -f k8s/kafka/strimzi-operator.yaml -n kafka
-- [ ] T088 [US9] Update k8s/kafka/kafka-cluster.yaml for OKE: increase memory to 4GB per broker, 3 brokers for production
-- [ ] T089 [US9] Deploy Kafka cluster to OKE: kubectl apply -f k8s/kafka/kafka-cluster.yaml -n kafka
-- [ ] T090 [US9] Wait for Kafka ready on OKE: kubectl wait kafka/taskflow-kafka --for=condition=Ready --timeout=600s -n kafka
-- [ ] T091 [US9] Deploy Kafka topics to OKE: kubectl apply -f k8s/kafka/kafka-topics.yaml -n kafka with replication factor 3
-- [ ] T092 [US9] Initialize Dapr on OKE: dapr init -k --wait --timeout 300
-- [ ] T093 [US9] Apply Dapr components to OKE: kubectl apply -f k8s/dapr/ (pubsub, state, secrets)
-- [ ] T094 [US9] Verify Dapr and Kafka on OKE: kubectl get pods -n kafka and kubectl get pods -n dapr-system
+- [X] T087 [US9] Deploy Strimzi operator to OKE: kubectl create -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
+- [X] T088 [US9] Used k8s/kafka/kafka-cluster-kraft.yaml for OKE: 1 broker with 2GB memory (free tier optimized)
+- [X] T089 [US9] Deploy Kafka cluster to OKE: kubectl apply -f k8s/kafka/kafka-cluster-kraft.yaml -n kafka
+- [X] T090 [US9] Wait for Kafka ready on OKE: kubectl wait kafka/taskflow-kafka --for=condition=Ready --timeout=600s -n kafka
+- [X] T091 [US9] Deploy Kafka topics to OKE: kubectl apply -f k8s/kafka/topics.yaml -n kafka (replication factor 1 for single broker)
+- [X] T092 [US9] Initialize Dapr on OKE: helm install dapr dapr/dapr --namespace dapr-system
+- [X] T093 [US9] Apply Dapr components to OKE: kubectl apply -f k8s/dapr/pubsub-kafka.yaml and subscription-reminders.yaml -n taskflow
+- [X] T094 [US9] Verify Dapr and Kafka on OKE: All pods running in kafka and dapr-system namespaces
 
 **Checkpoint**: Kafka and Dapr infrastructure running on OKE
 
@@ -261,16 +261,16 @@
 
 **Independent Test**: Access frontend via OKE LoadBalancer IP, app works, create task triggers Kafka events
 
-- [ ] T095 [US9] Tag Docker images for Docker Hub: docker tag taskflow-backend:latest <dockerhub-username>/taskflow-backend:phase5
-- [ ] T096 [US9] Tag notification image: docker tag taskflow-notification:latest <dockerhub-username>/taskflow-notification:phase5
-- [ ] T097 [US9] Push images to Docker Hub: docker push <dockerhub-username>/taskflow-backend:phase5 and docker push <dockerhub-username>/taskflow-notification:phase5
-- [ ] T098 [US9] Update helm/taskflow/values.yaml for OKE: image.repository to Docker Hub, backend.replicas: 2, notification.replicas: 1, resources.requests/limits for free tier
-- [ ] T099 [US9] Create helm/taskflow/values-oke.yaml with OKE-specific overrides (LoadBalancer type, resource limits)
-- [ ] T100 [US9] Deploy TaskFlow to OKE: helm install taskflow ./helm/taskflow -f helm/taskflow/values-oke.yaml
-- [ ] T101 [US9] Wait for pods: kubectl get pods shows backend, frontend, notification all running on OKE
-- [ ] T102 [US9] Configure LoadBalancer: kubectl get svc taskflow-frontend -o wide, note EXTERNAL-IP
-- [ ] T103 [US9] Test external access: Open http://<EXTERNAL-IP>:3000 in browser, verify app loads
-- [ ] T104 [US9] Create Ingress (optional): kubectl apply -f k8s/ingress.yaml with host rules for custom domain
+- [X] T095 [US9] Build and push backend image: docker build -t psqasim/taskflow-backend:latest && docker push
+- [X] T096 [US9] Build and push notification image: docker build -t psqasim/taskflow-notification:latest && docker push
+- [X] T097 [US9] Build and push frontend image: docker build -t psqasim/taskflow-frontend:latest && docker push
+- [X] T098 [US9] Created helm/taskflow/values-oke.yaml with fully qualified image names (docker.io/psqasim/...), replicas: 1, free tier resources
+- [X] T099 [US9] Created helm/taskflow/values-oke.yaml with OKE-specific overrides (LoadBalancer, imagePullSecrets, resource limits)
+- [X] T100 [US9] Deploy TaskFlow to OKE: helm upgrade --install taskflow ./helm/taskflow -f helm/taskflow/values-oke.yaml
+- [X] T101 [US9] All pods running: backend (2/2 with Dapr), frontend (1/1), notification (2/2 with Dapr)
+- [X] T102 [US9] LoadBalancer assigned EXTERNAL-IP: 129.151.146.217
+- [X] T103 [US9] Frontend accessible at http://129.151.146.217 (port 80)
+- [X] T104 [US9] Ingress not created (optional, using LoadBalancer directly)
 
 **Checkpoint**: TaskFlow fully deployed and accessible on Oracle OKE
 
@@ -280,18 +280,18 @@
 
 **Independent Test**: Run Phase 1-4 test suite, 100% pass rate, demo video shows cloud deployment
 
-- [ ] T105 [P] [US10] Run Phase 1 tests: Console app CRUD operations (if applicable)
-- [ ] T106 [P] [US10] Run Phase 2 tests: Web app CRUD, authentication, task list, filter tabs
-- [ ] T107 [P] [US10] Run Phase 3 tests: AI chatbot MCP tools, natural language task operations
-- [ ] T108 [P] [US10] Run Phase 4 tests: Kubernetes deployment, Helm chart validation
-- [ ] T109 [US10] Verify backward compatibility: Confirm 100% of Phase 1-4 tests pass on OKE
-- [ ] T110 [P] [US10] Verify event flow: Create task on OKE → check Kafka topic has task.created → check notification logs
-- [ ] T111 [P] [US10] Verify recurring tasks: Mark recurring task complete → next occurrence created
-- [ ] T112 [P] [US10] Verify sort functionality: Use sort dropdown → tasks reorder correctly
-- [ ] T113 [US10] Performance test: Measure p95 latency frontend → backend → database (target <2s per SC-007)
-- [ ] T114 [US10] Create demo video (max 90 seconds): Show OKE deployment, create task, events flow, recurring task, sort dropdown
-- [ ] T115 [US10] Update README.md with Phase 5 documentation: Oracle OKE setup, Kafka/Dapr architecture, event flow diagrams
-- [ ] T116 [US10] Update docs/phase-5/ with quickstart guide for Minikube and OKE deployment
+- [ ] T105 [P] [US10] Run Phase 1 tests: Console app CRUD operations (user to test)
+- [ ] T106 [P] [US10] Run Phase 2 tests: Web app CRUD, authentication, task list, filter tabs (user to test)
+- [ ] T107 [P] [US10] Run Phase 3 tests: AI chatbot MCP tools, natural language task operations (user to test)
+- [ ] T108 [P] [US10] Run Phase 4 tests: Kubernetes deployment, Helm chart validation (user to test)
+- [ ] T109 [US10] Verify backward compatibility: Confirm 100% of Phase 1-4 tests pass on OKE (user to verify)
+- [ ] T110 [P] [US10] Verify event flow: Create task on OKE → check Kafka topic has task.created → check notification logs (user to verify)
+- [ ] T111 [P] [US10] Verify recurring tasks: Mark recurring task complete → next occurrence created (user to test)
+- [ ] T112 [P] [US10] Verify sort functionality: Use sort dropdown → tasks reorder correctly (user to test)
+- [ ] T113 [US10] Performance test: Measure p95 latency frontend → backend → database (target <2s per SC-007) (user to measure)
+- [ ] T114 [US10] Create demo video (max 90 seconds): Show OKE deployment, create task, events flow, recurring task, sort dropdown (user to create)
+- [X] T115 [US10] Update README.md with Phase 5 documentation: Added Oracle OKE section, architecture diagram, deployment guide
+- [X] T116 [US10] Created docs/ORACLE-CLOUD-DEPLOYMENT.md and docs/PHASE-V-PART-C-TESTING-GUIDE.md with complete guides
 
 **Checkpoint**: Part C Complete - Full Phase 5 deployed on Oracle OKE, all tests pass, demo ready
 

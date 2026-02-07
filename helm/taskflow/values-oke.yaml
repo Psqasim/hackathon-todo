@@ -1,0 +1,63 @@
+# Oracle OKE specific values for TaskFlow deployment
+# This file overrides values.yaml for production Oracle Cloud deployment
+
+global:
+  environment: production
+
+imagePullSecrets:
+  - name: dockerhub-secret
+
+backend:
+  image:
+    repository: docker.io/psqasim/taskflow-backend
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "200m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+frontend:
+  image:
+    repository: docker.io/psqasim/taskflow-frontend
+    tag: latest
+    pullPolicy: Always
+  replicas: 1
+  service:
+    type: LoadBalancer
+    # Oracle OKE LoadBalancer annotations
+    annotations:
+      oci.oraclecloud.com/load-balancer-type: "lb"
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+notification:
+  enabled: true
+  image: docker.io/psqasim/taskflow-notification
+  tag: latest
+  imagePullPolicy: Always
+  replicas: 1
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "200m"
+
+dapr:
+  enabled: true
+  pubsubName: taskflow-pubsub
+
+kafka:
+  # Kafka bootstrap server for Strimzi on OKE
+  bootstrapServer: taskflow-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
