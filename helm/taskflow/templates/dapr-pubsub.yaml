@@ -1,0 +1,38 @@
+{{- if .Values.dapr.enabled }}
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: {{ .Values.dapr.pubsubName | default "taskflow-pubsub" }}
+  namespace: {{ .Values.namespace.name }}
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+    # Kafka broker address (Strimzi cluster)
+    - name: brokers
+      value: {{ .Values.kafka.bootstrapServer | default "taskflow-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092" | quote }}
+
+    # Consumer group for TaskFlow
+    - name: consumerGroup
+      value: {{ .Values.kafka.consumerGroup | default "taskflow-group" | quote }}
+
+    # No authentication required for development
+    - name: authRequired
+      value: {{ .Values.kafka.authRequired | default "false" | quote }}
+
+    # Client ID for identification
+    - name: clientID
+      value: {{ .Values.kafka.clientID | default "taskflow-client" | quote }}
+
+    # Consumer configuration
+    - name: consumeRetryEnabled
+      value: {{ .Values.kafka.consumeRetryEnabled | default "true" | quote }}
+
+    # Offset management: start from latest messages
+    - name: initialOffset
+      value: {{ .Values.kafka.initialOffset | default "latest" | quote }}
+
+    # Message delivery guarantee: at-least-once
+    - name: maxMessageBytes
+      value: {{ .Values.kafka.maxMessageBytes | default "1024000" | quote }}
+{{- end }}

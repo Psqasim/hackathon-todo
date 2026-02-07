@@ -14,6 +14,17 @@ spec:
     metadata:
       labels:
         {{- include "taskflow.backend.selectorLabels" . | nindent 8 }}
+      {{- if .Values.dapr.enabled }}
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "taskflow-backend"
+        dapr.io/app-port: "7860"
+        dapr.io/log-level: {{ .Values.dapr.logLevel | default "info" | quote }}
+        dapr.io/sidecar-cpu-limit: {{ .Values.dapr.sidecarCpuLimit | default "500m" | quote }}
+        dapr.io/sidecar-memory-limit: {{ .Values.dapr.sidecarMemoryLimit | default "256Mi" | quote }}
+        dapr.io/sidecar-cpu-request: {{ .Values.dapr.sidecarCpuRequest | default "100m" | quote }}
+        dapr.io/sidecar-memory-request: {{ .Values.dapr.sidecarMemoryRequest | default "128Mi" | quote }}
+      {{- end }}
     spec:
       securityContext:
         {{- toYaml .Values.backend.securityContext | nindent 8 }}

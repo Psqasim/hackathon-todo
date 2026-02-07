@@ -35,17 +35,17 @@ backend:
     httpGet:
       path: /health
       port: 7860
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
 
   readinessProbe:
     httpGet:
       path: /health
       port: 7860
-    initialDelaySeconds: 10
-    periodSeconds: 5
+    initialDelaySeconds: 30
+    periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
 
@@ -53,7 +53,9 @@ backend:
     httpGet:
       path: /health
       port: 7860
+    initialDelaySeconds: 10
     periodSeconds: 10
+    timeoutSeconds: 5
     failureThreshold: 60  # 600 seconds max startup time
 
   # Security context
@@ -111,7 +113,7 @@ config:
   jwtExpirationDays: "7"
   backendUrl: "http://backend-service:8000"
   nextPublicApiUrl: "http://backend-service:8000"
-  mcpBackendUrl: "http://localhost:8001"
+  mcpBackendUrl: "http://localhost:7860"  # MCP server calls FastAPI on port 7860
   logLevel: "info"
 
 # Secrets (sensitive values - provide via --set or values file)
@@ -136,3 +138,85 @@ secrets:
 
 # Image pull secrets (if using private registry)
 imagePullSecrets: []
+
+# Dapr configuration (Phase 5)
+dapr:
+  enabled: false  # Set to true to enable Dapr sidecars
+  pubsubName: taskflow-pubsub
+  logLevel: info
+
+  # Dapr sidecar resource limits
+  sidecarCpuLimit: "500m"
+  sidecarMemoryLimit: "256Mi"
+  sidecarCpuRequest: "100m"
+  sidecarMemoryRequest: "128Mi"
+
+  # Bulk subscribe configuration
+  bulkSubscribe:
+    enabled: false
+    maxMessagesCount: 100
+    maxAwaitDurationMs: 1000
+
+# Kafka configuration (Phase 5)
+kafka:
+  # Bootstrap server (Strimzi cluster in kafka namespace)
+  bootstrapServer: taskflow-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+
+  # Consumer configuration
+  consumerGroup: taskflow-group
+  clientID: taskflow-client
+
+  # Authentication
+  authRequired: false
+
+  # Consumer retry
+  consumeRetryEnabled: true
+
+  # Offset management
+  initialOffset: newest
+
+  # Message size limit (1MB)
+  maxMessageBytes: "1024000"
+
+# Notification Service configuration (Phase 5)
+notification:
+  enabled: false  # Set to true to deploy notification service
+  replicas: 1
+
+  image: taskflow-notification
+  tag: latest
+  imagePullPolicy: Never  # Use local image for Minikube
+
+  port: 8001
+  logLevel: INFO
+
+  service:
+    type: ClusterIP
+    port: 8001
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+
+  # Health probes
+  livenessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000

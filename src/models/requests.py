@@ -161,6 +161,15 @@ class SingleTaskResponse(BaseModel):
     task: TaskResponse
 
 
+class CompleteTaskResponse(BaseModel):
+    """Complete task response with optional next occurrence."""
+
+    completed_task: TaskResponse
+    next_occurrence: TaskResponse | None = Field(
+        None, description="Next occurrence for recurring tasks"
+    )
+
+
 class DeleteTaskResponse(BaseModel):
     """Delete task response."""
 

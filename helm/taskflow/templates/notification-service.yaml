@@ -1,0 +1,18 @@
+{{- if .Values.notification.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "taskflow.notification.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "taskflow.notification.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.notification.service.port | default 8001 }}
+      targetPort: {{ .Values.notification.port | default 8001 }}
+      protocol: TCP
+  type: {{ .Values.notification.service.type | default "ClusterIP" }}
+{{- end }}

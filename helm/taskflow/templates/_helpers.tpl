@@ -81,6 +81,23 @@ app: taskflow-frontend
 {{- end }}
 
 {{/*
+Notification labels
+*/}}
+{{- define "taskflow.notification.labels" -}}
+{{ include "taskflow.labels" . }}
+app: notification-service
+component: microservice
+{{- end }}
+
+{{/*
+Notification selector labels
+*/}}
+{{- define "taskflow.notification.selectorLabels" -}}
+{{ include "taskflow.selectorLabels" . }}
+app: notification-service
+{{- end }}
+
+{{/*
 Create the name of the service account to use
 */}}
 {{- define "taskflow.serviceAccountName" -}}

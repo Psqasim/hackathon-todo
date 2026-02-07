@@ -45,11 +45,13 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy application source code
 COPY src/ /app/src/
 COPY scripts/start-backend.sh /app/scripts/start-backend.sh
+COPY scripts/start-both-servers.py /app/scripts/start-both-servers.py
 
 # Create non-root user (UID 1000 for Kubernetes security context)
 RUN adduser --uid 1000 --disabled-password --gecos "" appuser \
     && chown -R appuser:appuser /app \
-    && chmod +x /app/scripts/start-backend.sh
+    && chmod +x /app/scripts/start-backend.sh \
+    && chmod +x /app/scripts/start-both-servers.py
 
 # Switch to non-root user
 USER appuser

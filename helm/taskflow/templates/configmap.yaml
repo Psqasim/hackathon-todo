@@ -17,3 +17,13 @@ data:
 
   # Logging
   LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+
+  {{- if .Values.dapr.enabled }}
+  # Dapr Configuration
+  DAPR_ENABLED: "true"
+  DAPR_HTTP_PORT: "3500"
+  DAPR_GRPC_PORT: "50001"
+  PUBSUB_NAME: {{ .Values.dapr.pubsubName | default "taskflow-pubsub" | quote }}
+  {{- else }}
+  DAPR_ENABLED: "false"
+  {{- end }}

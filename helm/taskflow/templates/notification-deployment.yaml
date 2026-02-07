@@ -1,0 +1,67 @@
+{{- if .Values.notification.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "taskflow.notification.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.notification.replicas }}
+  selector:
+    matchLabels:
+      {{- include "taskflow.notification.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "taskflow.notification.selectorLabels" . | nindent 8 }}
+      {{- if .Values.dapr.enabled }}
+      annotations:
+        # Dapr sidecar configuration
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "notification-service"
+        dapr.io/app-port: {{ .Values.notification.port | default "8001" | quote }}
+        dapr.io/log-level: {{ .Values.dapr.logLevel | default "info" | quote }}
+        # Dapr resource limits
+        dapr.io/sidecar-cpu-limit: {{ .Values.dapr.sidecarCpuLimit | default "500m" | quote }}
+        dapr.io/sidecar-memory-limit: {{ .Values.dapr.sidecarMemoryLimit | default "256Mi" | quote }}
+        dapr.io/sidecar-cpu-request: {{ .Values.dapr.sidecarCpuRequest | default "100m" | quote }}
+        dapr.io/sidecar-memory-request: {{ .Values.dapr.sidecarMemoryRequest | default "128Mi" | quote }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: notification
+          image: "{{ .Values.notification.image }}:{{ .Values.notification.tag }}"
+          imagePullPolicy: {{ .Values.notification.imagePullPolicy }}
+          ports:
+            - containerPort: {{ .Values.notification.port | default 8001 }}
+              name: http
+              protocol: TCP
+          env:
+            - name: LOG_LEVEL
+              value: {{ .Values.notification.logLevel | default "INFO" | quote }}
+          resources:
+            {{- toYaml .Values.notification.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.notification.port | default 8001 }}
+            initialDelaySeconds: {{ .Values.notification.livenessProbe.initialDelaySeconds | default 15 }}
+            periodSeconds: {{ .Values.notification.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.notification.livenessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.notification.livenessProbe.failureThreshold | default 3 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.notification.port | default 8001 }}
+            initialDelaySeconds: {{ .Values.notification.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ .Values.notification.readinessProbe.periodSeconds | default 5 }}
+            timeoutSeconds: {{ .Values.notification.readinessProbe.timeoutSeconds | default 5 }}
+            failureThreshold: {{ .Values.notification.readinessProbe.failureThreshold | default 3 }}
+      securityContext:
+        {{- toYaml .Values.notification.securityContext | nindent 8 }}
+{{- end }}

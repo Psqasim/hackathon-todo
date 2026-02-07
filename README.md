@@ -37,6 +37,15 @@ license: mit
   <img src="https://img.shields.io/badge/Tailwind-4.0-38B2AC?style=flat-square&logo=tailwind-css" alt="Tailwind" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Kubernetes-1.34+-326CE5?style=flat-square&logo=kubernetes&logoColor=white" alt="Kubernetes" />
+  <img src="https://img.shields.io/badge/Docker-24.0+-2496ED?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
+  <img src="https://img.shields.io/badge/Helm-3.20+-0F1689?style=flat-square&logo=helm&logoColor=white" alt="Helm" />
+  <img src="https://img.shields.io/badge/Oracle_Cloud-OKE-F80000?style=flat-square&logo=oracle&logoColor=white" alt="Oracle Cloud" />
+  <img src="https://img.shields.io/badge/Apache_Kafka-3.8+-231F20?style=flat-square&logo=apache-kafka&logoColor=white" alt="Kafka" />
+  <img src="https://img.shields.io/badge/Dapr-1.16+-0D2192?style=flat-square&logo=dapr&logoColor=white" alt="Dapr" />
+</p>
+
 ---
 
 ## About
@@ -53,19 +62,20 @@ license: mit
 | **Phase II** | Web App (PostgreSQL + OAuth) | ✅ Completed | See below |
 | **Phase III** | AI Chatbot (OpenAI Agents SDK) | ✅ Completed | See below |
 | **Phase IV** | Local Kubernetes Deployment | ✅ Completed | See [K8s Guide](./docs/PHASE-IV-TESTING-GUIDE.md) |
-| Phase V | Cloud Deployment | Upcoming | - |
+| **Phase V** | Cloud Deployment (Oracle OKE + Kafka + Dapr) | ✅ Completed | See [OKE Guide](./docs/ORACLE-CLOUD-DEPLOYMENT.md) |
 
 ---
 
 ## Live Demo
 
-| Service | URL |
-|---------|-----|
-| **Web App** | https://hackathon-todo-orcin.vercel.app |
-| **Backend API** | https://psqasim-taskflow-backend.hf.space |
-| **API Docs** | https://psqasim-taskflow-backend.hf.space/docs |
+| Service | URL | Platform |
+|---------|-----|----------|
+| **Web App** | https://hackathon-todo-orcin.vercel.app | Vercel |
+| **Backend API** | https://psqasim-taskflow-backend.hf.space | Hugging Face Spaces |
+| **API Docs** | https://psqasim-taskflow-backend.hf.space/docs | Hugging Face Spaces |
+| **Oracle OKE Deployment** | http://129.151.146.217 | Oracle Cloud (Free Tier) |
 
-> **Note**: Backend migrated from Railway to Hugging Face Spaces (free hosting with Docker)
+> **Note**: Phase V cloud deployment on Oracle OKE includes Kafka event streaming and Dapr microservices architecture. See [deployment guide](./docs/ORACLE-CLOUD-DEPLOYMENT.md) for details.
 
 ---
 
@@ -447,17 +457,220 @@ Includes:
 
 ---
 
-## All Four Phases Use Same Codebase
+## Run Phase V: Oracle Cloud Deployment
 
-| Aspect | Phase I (Console) | Phase II (Web) | Phase III (AI Chat) | Phase IV (Kubernetes) |
-|--------|-------------------|----------------|---------------------|----------------------|
-| **Entry Point** | `uv run todo` | `uvicorn + npm run dev` | + MCP Server | `kubectl apply -f k8s/` |
-| **Interface** | Rich Console | Next.js Web UI | AI Chat Page | Same as II + III |
-| **Storage** | InMemoryBackend | PostgresBackend (Neon) | + OpenAI Conversations | Same as II + III |
-| **Auth** | None | JWT + OAuth | Same as Phase II | Same as II + III |
-| **AI** | None | None | OpenAI Agents SDK | Same as III + AI DevOps |
-| **Deployment** | Local | Local/Vercel/HF | Same as Phase II | Kubernetes Cluster |
-| **Can Run Together** | Yes | Yes | Yes | Yes (via K8s) |
+Phase V deploys TaskFlow to Oracle Cloud Infrastructure (OCI) Kubernetes Engine (OKE) with an event-driven architecture using Apache Kafka and Dapr.
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         Oracle Cloud OKE (Free Tier)                        │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────────┐│
+│  │                      Namespace: kafka                                   ││
+│  │  ┌─────────────────────┐  ┌──────────────────────┐                     ││
+│  │  │ Strimzi Operator    │  │ Kafka Cluster        │                     ││
+│  │  │ (KRaft Mode)        │  │ - 1 broker           │                     ││
+│  │  │                     │  │ - Topics:            │                     ││
+│  │  │                     │  │   • task-events (3p) │                     ││
+│  │  │                     │  │   • reminders (1p)   │                     ││
+│  │  └─────────────────────┘  └──────────────────────┘                     ││
+│  └────────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────────┐│
+│  │                    Namespace: dapr-system                               ││
+│  │  ┌─────────────┐ ┌─────────────┐ ┌──────────────┐ ┌─────────────────┐ ││
+│  │  │   Operator  │ │   Sentry    │ │   Injector   │ │ Placement (3x)  │ ││
+│  │  └─────────────┘ └─────────────┘ └──────────────┘ └─────────────────┘ ││
+│  └────────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────────┐│
+│  │                     Namespace: taskflow                                 ││
+│  │                                                                         ││
+│  │  ┌──────────────────────┐  ┌──────────────────────┐                   ││
+│  │  │  Backend (2/2)       │  │  Frontend (1/1)      │                   ││
+│  │  │  - FastAPI           │  │  - Next.js           │                   ││
+│  │  │  - Dapr sidecar      │  │  - LoadBalancer      │                   ││
+│  │  │  - Publishes events  │  │  - External IP       │                   ││
+│  │  └──────────┬───────────┘  └──────────────────────┘                   ││
+│  │             │                         │                                ││
+│  │             │                         │                                ││
+│  │  ┌──────────▼────────────────────────▼──────────┐                     ││
+│  │  │         Dapr Pub/Sub (Kafka)                 │                     ││
+│  │  │  - task-events topic                         │                     ││
+│  │  │  - reminders topic                           │                     ││
+│  │  └──────────┬────────────────────────────────────┘                    ││
+│  │             │                                                          ││
+│  │  ┌──────────▼───────────┐                                             ││
+│  │  │ Notification (2/2)   │                                             ││
+│  │  │ - FastAPI            │                                             ││
+│  │  │ - Dapr sidecar       │                                             ││
+│  │  │ - Subscribes to      │                                             ││
+│  │  │   reminders topic    │                                             ││
+│  │  └──────────────────────┘                                             ││
+│  └────────────────────────────────────────────────────────────────────────┘│
+│                                                                             │
+│                              ▼                                              │
+│                    http://129.151.146.217                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Event-Driven Architecture** | Kafka for task events and reminders |
+| **Dapr Integration** | Service-to-service communication abstraction |
+| **Strimzi Kafka** | Kubernetes-native Kafka operator (KRaft mode) |
+| **Microservices** | Backend, Frontend, Notification as separate services |
+| **Cloud-Native** | Oracle OKE free tier (4 OCPUs, 24GB RAM) |
+| **Sort Functionality** | Sort tasks by due date, priority, created, title |
+| **Recurring Tasks** | Auto-create next occurrence when marked complete |
+| **Event Publishing** | All task CRUD operations publish events to Kafka |
+
+### Quick Deploy to Oracle OKE
+
+**Prerequisites**:
+- Oracle Cloud account (free tier)
+- OCI CLI installed and configured
+- Docker Hub account (for images)
+- kubectl, helm installed
+
+**Step 1: Create OKE Cluster**
+```bash
+# Via Oracle Console: Developer Services → Kubernetes Clusters
+# - Quick Create
+# - Shape: VM.Standard.E2.1.Micro (Free tier)
+# - Nodes: 2
+# - Wait 10-15 minutes for provisioning
+```
+
+**Step 2: Configure kubectl**
+```bash
+oci ce cluster create-kubeconfig \
+  --cluster-id <your-cluster-ocid> \
+  --file ~/.kube/config-oke \
+  --region <your-region>
+
+export KUBECONFIG=~/.kube/config-oke
+kubectl get nodes  # Verify 2 nodes Ready
+```
+
+**Step 3: Deploy Infrastructure**
+```bash
+# Install Strimzi Kafka
+kubectl create namespace kafka
+kubectl create -f 'https://strimzi.io/install/latest?namespace=kafka' -n kafka
+kubectl apply -f k8s/kafka/kafka-cluster-kraft.yaml
+kubectl apply -f k8s/kafka/topics.yaml
+
+# Install Dapr via Helm
+helm repo add dapr https://dapr.github.io/helm-charts/
+helm install dapr dapr/dapr --namespace dapr-system --create-namespace
+
+# Apply Dapr components
+kubectl apply -f k8s/dapr/pubsub-kafka.yaml -n taskflow
+kubectl apply -f k8s/dapr/subscription-reminders.yaml -n taskflow
+```
+
+**Step 4: Build and Push Images**
+```bash
+# Login to Docker Hub
+docker login -u <username>
+
+# Build and push
+docker build -t <username>/taskflow-backend:latest -f Dockerfile.k8s .
+docker build -t <username>/taskflow-frontend:latest -f frontend/Dockerfile frontend/
+docker build -t <username>/taskflow-notification:latest -f src/services/notification/Dockerfile src/services/notification/
+
+docker push <username>/taskflow-backend:latest
+docker push <username>/taskflow-frontend:latest
+docker push <username>/taskflow-notification:latest
+```
+
+**Step 5: Create Secrets**
+```bash
+kubectl create namespace taskflow
+kubectl create secret generic taskflow-secrets \
+  --namespace taskflow \
+  --from-env-file=.env
+```
+
+**Step 6: Deploy TaskFlow**
+```bash
+# Update helm/taskflow/values-oke.yaml with your Docker Hub username
+# Then deploy
+helm upgrade --install taskflow ./helm/taskflow \
+  --namespace taskflow \
+  -f helm/taskflow/values.yaml \
+  -f helm/taskflow/values-oke.yaml \
+  --wait --timeout 10m
+```
+
+**Step 7: Get External IP**
+```bash
+kubectl get svc frontend-service -n taskflow
+# Wait for EXTERNAL-IP to be assigned (2-3 minutes)
+# Access at http://<EXTERNAL-IP>
+```
+
+### Testing Guide
+
+**📖 Complete Guide**: [docs/PHASE-V-PART-C-TESTING-GUIDE.md](./docs/PHASE-V-PART-C-TESTING-GUIDE.md)
+
+**Quick Verification**:
+```bash
+# Check all pods running
+kubectl get pods --all-namespaces
+
+# Check Kafka topics
+kubectl get kafkatopics -n kafka
+
+# Check Dapr components
+kubectl get components -n taskflow
+
+# Test event flow
+# 1. Create task via frontend
+# 2. Check backend logs: kubectl logs -n taskflow -l app=backend -c backend
+# 3. Check notification logs: kubectl logs -n taskflow -l app=notification -c notification
+```
+
+### Deployment Documentation
+
+- **[Oracle Cloud Deployment Guide](./docs/ORACLE-CLOUD-DEPLOYMENT.md)** - Complete step-by-step guide
+- **[Phase V Testing Guide](./docs/PHASE-V-PART-C-TESTING-GUIDE.md)** - Comprehensive testing procedures
+- **[Spec](./specs/005-advanced-cloud-kafka-dapr/spec.md)** - Phase V requirements
+- **[Plan](./specs/005-advanced-cloud-kafka-dapr/plan.md)** - Implementation plan
+- **[Tasks](./specs/005-advanced-cloud-kafka-dapr/tasks.md)** - Task breakdown
+
+### Cost Optimization
+
+Oracle Free Tier provides:
+- 4 OCPUs, 24GB RAM (Always Free)
+- 2 LoadBalancers (50 Mbps each)
+- 200GB Block Storage
+
+**Estimated Usage**:
+- Kafka: ~1.5GB RAM, 1 CPU
+- Dapr: ~512MB RAM, 0.5 CPU
+- TaskFlow: ~768MB RAM, 0.8 CPU
+- **Total**: ~2.8GB RAM, 2.3 CPU (within free tier)
+
+---
+
+## All Five Phases Use Same Codebase
+
+| Aspect | Phase I (Console) | Phase II (Web) | Phase III (AI Chat) | Phase IV (K8s) | Phase V (Cloud) |
+|--------|-------------------|----------------|---------------------|----------------|-----------------|
+| **Entry Point** | `uv run todo` | `uvicorn + npm` | + MCP Server | `helm install` | Same + OKE |
+| **Interface** | Rich Console | Next.js Web UI | AI Chat Page | Same as II + III | Same + LoadBalancer |
+| **Storage** | InMemoryBackend | PostgresBackend | + OpenAI | Same as II + III | Same + Kafka Events |
+| **Auth** | None | JWT + OAuth | Same as Phase II | Same as II + III | Same as II + III |
+| **AI** | None | None | OpenAI Agents SDK | Same + AI DevOps | Same as IV |
+| **Events** | None | None | None | None | Kafka + Dapr |
+| **Deployment** | Local | Local/Vercel/HF | Same as Phase II | K8s Cluster | Oracle OKE |
+| **Can Run Together** | Yes | Yes | Yes | Yes (via K8s) | Yes (via OKE) |
 
 ### Run All Simultaneously
 

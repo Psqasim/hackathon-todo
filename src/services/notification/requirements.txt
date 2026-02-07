@@ -1,0 +1,12 @@
+# TaskFlow Notification Service Dependencies
+# Phase 5: Event-Driven Architecture
+
+# FastAPI framework
+fastapi>=0.109.0,<0.110.0
+
+# ASGI server
+uvicorn[standard]>=0.27.0,<0.28.0
+
+# Pydantic for data validation
+pydantic>=2.5.0,<3.0.0
+pydantic-settings>=2.1.0,<3.0.0
