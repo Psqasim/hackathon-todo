@@ -18,7 +18,7 @@ spec:
       annotations:
         dapr.io/enabled: "true"
         dapr.io/app-id: "taskflow-backend"
-        dapr.io/app-port: "8000"
+        dapr.io/app-port: "7860"
         dapr.io/log-level: {{ .Values.dapr.logLevel | default "info" | quote }}
         dapr.io/sidecar-cpu-limit: {{ .Values.dapr.sidecarCpuLimit | default "500m" | quote }}
         dapr.io/sidecar-memory-limit: {{ .Values.dapr.sidecarMemoryLimit | default "256Mi" | quote }}

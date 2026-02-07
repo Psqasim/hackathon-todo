@@ -1104,6 +1104,110 @@ async def complete_task_endpoint(
 
 
 # =============================================================================
+# Convenience Task Endpoints (Current User)
+# =============================================================================
+# These endpoints automatically use the authenticated user's ID
+# Equivalent to /api/users/{user_id}/tasks but without needing user_id in path
+
+
+@app.get("/api/tasks", response_model=TaskListResponse, tags=["tasks"])
+async def list_current_user_tasks(
+    current_user: CurrentUser,
+    status_filter: str | None = Query(default=None, alias="status"),
+    priority_filter: str | None = Query(default=None, alias="priority"),
+    sort_by: str = Query(default="created_at", enum=["due_date", "priority", "created_at", "title"]),
+    sort_order: str = Query(default="desc", enum=["asc", "desc"]),
+) -> TaskListResponse:
+    """Get all tasks for the authenticated user."""
+    return await list_tasks(
+        user_id=current_user,
+        current_user=current_user,
+        status_filter=status_filter,
+        priority_filter=priority_filter,
+        sort_by=sort_by,
+        sort_order=sort_order,
+    )
+
+
+@app.post(
+    "/api/tasks",
+    response_model=SingleTaskResponse,
+    status_code=http_status.HTTP_201_CREATED,
+    tags=["tasks"],
+)
+async def create_current_user_task(
+    request: CreateTaskRequest,
+    current_user: CurrentUser,
+) -> SingleTaskResponse:
+    """Create a new task for the authenticated user."""
+    return await create_task_endpoint(
+        user_id=current_user,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@app.get("/api/tasks/{task_id}", response_model=SingleTaskResponse, tags=["tasks"])
+async def get_current_user_task(
+    task_id: str,
+    current_user: CurrentUser,
+) -> SingleTaskResponse:
+    """Get a specific task for the authenticated user."""
+    return await get_task_endpoint(
+        user_id=current_user,
+        task_id=task_id,
+        current_user=current_user,
+    )
+
+
+@app.put("/api/tasks/{task_id}", response_model=SingleTaskResponse, tags=["tasks"])
+async def update_current_user_task(
+    task_id: str,
+    request: UpdateTaskRequest,
+    current_user: CurrentUser,
+) -> SingleTaskResponse:
+    """Update a specific task for the authenticated user."""
+    return await update_task_endpoint(
+        user_id=current_user,
+        task_id=task_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+@app.delete("/api/tasks/{task_id}", response_model=DeleteTaskResponse, tags=["tasks"])
+async def delete_current_user_task(
+    task_id: str,
+    current_user: CurrentUser,
+) -> DeleteTaskResponse:
+    """Delete a specific task for the authenticated user."""
+    return await delete_task_endpoint(
+        user_id=current_user,
+        task_id=task_id,
+        current_user=current_user,
+    )
+
+
+@app.patch(
+    "/api/tasks/{task_id}/complete",
+    response_model=CompleteTaskResponse,
+    tags=["tasks"],
+)
+async def complete_current_user_task(
+    task_id: str,
+    request: CompleteTaskRequest,
+    current_user: CurrentUser,
+) -> CompleteTaskResponse:
+    """Toggle completion status for the authenticated user's task."""
+    return await complete_task_endpoint(
+        user_id=current_user,
+        task_id=task_id,
+        request=request,
+        current_user=current_user,
+    )
+
+
+# =============================================================================
 # Chat Endpoints (Phase III - Spec Compliant)
 # =============================================================================
 #

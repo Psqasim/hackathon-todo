@@ -35,17 +35,17 @@ backend:
     httpGet:
       path: /health
       port: 7860
-    initialDelaySeconds: 30
-    periodSeconds: 10
-    timeoutSeconds: 5
-    failureThreshold: 3
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 5
 
   readinessProbe:
     httpGet:
       path: /health
       port: 7860
-    initialDelaySeconds: 10
-    periodSeconds: 5
+    initialDelaySeconds: 30
+    periodSeconds: 10
     timeoutSeconds: 5
     failureThreshold: 3
 
@@ -53,7 +53,9 @@ backend:
     httpGet:
       path: /health
       port: 7860
+    initialDelaySeconds: 10
     periodSeconds: 10
+    timeoutSeconds: 5
     failureThreshold: 60  # 600 seconds max startup time
 
   # Security context
@@ -111,7 +113,7 @@ config:
   jwtExpirationDays: "7"
   backendUrl: "http://backend-service:8000"
   nextPublicApiUrl: "http://backend-service:8000"
-  mcpBackendUrl: "http://localhost:8001"
+  mcpBackendUrl: "http://localhost:7860"  # MCP server calls FastAPI on port 7860
   logLevel: "info"
 
 # Secrets (sensitive values - provide via --set or values file)
@@ -171,10 +173,10 @@ kafka:
   consumeRetryEnabled: true
 
   # Offset management
-  initialOffset: latest
+  initialOffset: newest
 
   # Message size limit (1MB)
-  maxMessageBytes: 1024000
+  maxMessageBytes: "1024000"
 
 # Notification Service configuration (Phase 5)
 notification:

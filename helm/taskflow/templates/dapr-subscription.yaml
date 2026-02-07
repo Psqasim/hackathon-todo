@@ -16,15 +16,5 @@ spec:
   routes:
     # Default route for reminder events
     default: /events/reminders
-
-  # Scopes: which apps can use this subscription
-  scopes:
-    - notification-service
-
-  # Bulk subscribe (optional, improves throughput)
-  bulkSubscribe:
-    enabled: {{ .Values.dapr.bulkSubscribe.enabled | default false }}
-    maxMessagesCount: {{ .Values.dapr.bulkSubscribe.maxMessagesCount | default 100 }}
-    maxAwaitDurationMs: {{ .Values.dapr.bulkSubscribe.maxAwaitDurationMs | default 1000 }}
 {{- end }}
 {{- end }}

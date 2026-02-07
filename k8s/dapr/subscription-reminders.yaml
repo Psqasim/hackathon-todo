@@ -14,13 +14,3 @@ spec:
   routes:
     # Default route for reminder events
     default: /events/reminders
-
-  # Scopes: which apps can use this subscription
-  scopes:
-    - notification-service
-
-  # Bulk subscribe (optional, improves throughput)
-  bulkSubscribe:
-    enabled: false
-    maxMessagesCount: 100
-    maxAwaitDurationMs: 1000
